@@ -190,9 +190,16 @@ export async function POST(request: NextRequest) {
       noticeUrl: normalizeNoticeUrl(noticeUrl),
     })
     return NextResponse.json({ noticeUrl: normalizeNoticeUrl(noticeUrl) })
-  } catch {
+  } catch (error) {
+    console.error('Unable to create CMP notice:', error)
+
+    const message =
+      error instanceof Error && error.message
+        ? `Unable to create CMP notice: ${error.message}`
+        : 'Unable to create CMP notice.'
+
     return NextResponse.json(
-      { message: 'Unable to create CMP notice.' },
+      { message },
       { status: 502 },
     )
   }

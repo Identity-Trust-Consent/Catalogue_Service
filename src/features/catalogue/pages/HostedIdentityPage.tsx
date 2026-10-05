@@ -559,6 +559,7 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
           verificationStatus,
         })
         setFormValues({})
+        setOtpState({})
         setConsentGranted(false)
         setConsentPrincipal('')
         setMessageTone('success')
