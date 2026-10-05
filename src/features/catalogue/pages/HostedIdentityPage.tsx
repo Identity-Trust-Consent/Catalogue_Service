@@ -270,6 +270,9 @@ const buildConsentReturnUrl = () => {
 export default function HostedIdentityPage({ initialClientId = '', initialRedirectUri = '', mode }: HostedIdentityPageProps) {
   const [clientId, setClientId] = useState(initialClientId)
   const [redirectUri, setRedirectUri] = useState(initialRedirectUri)
+  const [initialUsername, setInitialUsername] = useState('')
+  const [returnUrl, setReturnUrl] = useState('')
+  const [completionPurpose, setCompletionPurpose] = useState('')
   const [applications, setApplications] = useState<HostedApplication[]>([])
   const [schemas, setSchemas] = useState<HostedSchema[]>([])
   const [formValues, setFormValues] = useState<Record<string, string>>({})
@@ -289,6 +292,9 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
     const params = new URLSearchParams(window.location.search)
     setClientId(initialClientId || params.get('client_id') || '')
     setRedirectUri(initialRedirectUri || params.get('redirect_uri') || '')
+    setInitialUsername(params.get('username') || '')
+    setReturnUrl(params.get('return_url') || '')
+    setCompletionPurpose(params.get('purpose') || '')
     setQueryReady(true)
   }, [initialClientId, initialRedirectUri])
 
@@ -376,6 +382,13 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
       setConsentPrincipal('')
     }
   }, [clientId, currentMode, pendingConsentPrincipalKey, registrationDraftKey, registrationSchema, registrationVerificationDraftKey, schemaConsentKey])
+
+  useEffect(() => {
+    if (currentMode !== 'register' || !initialUsername || !fields.length) return
+    const usernameField = fields.find((field) => canonicalFieldName(field) === 'username')
+    if (!usernameField) return
+    setFormValues((prev) => prev[usernameField.name] ? prev : { ...prev, [usernameField.name]: initialUsername })
+  }, [currentMode, fields, initialUsername])
 
   const updateField = (name: string, value: string) => {
     setFormValues((prev) => ({ ...prev, [name]: value }))
@@ -549,11 +562,17 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
         setConsentGranted(false)
         setConsentPrincipal('')
         setMessageTone('success')
-        setMessage('Registration completed successfully. You can now login with this username and password.')
+        setMessage(completionPurpose === 'complete_profile'
+          ? 'Profile completed successfully. Your trust score can now be refreshed.'
+          : 'Registration completed successfully. You can now login with this username and password.')
         sessionStorage.removeItem(registrationDraftKey)
         sessionStorage.removeItem(registrationVerificationDraftKey)
         sessionStorage.removeItem(pendingConsentPrincipalKey)
         sessionStorage.removeItem(schemaConsentKey)
+        if (returnUrl) {
+          window.location.href = returnUrl
+          return
+        }
         const url = new URL(window.location.href)
         url.searchParams.delete('cmp_consent')
         window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)

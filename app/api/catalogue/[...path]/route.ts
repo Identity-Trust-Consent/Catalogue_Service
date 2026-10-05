@@ -8,10 +8,37 @@ const AUTH_API_BASE_URL =
   process.env.AUTH_API_BASE_URL ||
   process.env.NEXT_PUBLIC_AUTH_API_BASE_URL ||
   'http://localhost:8082'
+const TRUST_API_BASE_URL =
+  process.env.TRUST_API_BASE_URL ||
+  process.env.NEXT_PUBLIC_TRUST_API_BASE_URL ||
+  'http://localhost:8087'
+const AUDIT_API_BASE_URL =
+  process.env.AUDIT_API_BASE_URL ||
+  process.env.AUDIT_SERVICE_URL ||
+  process.env.NEXT_PUBLIC_AUDIT_API_BASE_URL ||
+  'http://localhost:8086'
 
 const uniqueUrls = (urls: string[]) => Array.from(new Set(urls.filter(Boolean)))
 
-const serviceBaseUrls = (isAuthPath: boolean) => {
+const serviceBaseUrls = (isAuthPath: boolean, isTrustPath: boolean, isAuditPath: boolean) => {
+  if (isAuditPath) {
+    return uniqueUrls([
+      AUDIT_API_BASE_URL,
+      process.env.NEXT_PUBLIC_AUDIT_API_BASE_URL || '',
+      'http://127.0.0.1:8086',
+      'http://localhost:8086',
+    ])
+  }
+
+  if (isTrustPath) {
+    return uniqueUrls([
+      TRUST_API_BASE_URL,
+      process.env.NEXT_PUBLIC_TRUST_API_BASE_URL || '',
+      'http://127.0.0.1:8087',
+      'http://localhost:8087',
+    ])
+  }
+
   if (isAuthPath) {
     return uniqueUrls([
       AUTH_API_BASE_URL,
@@ -51,11 +78,13 @@ async function proxyOnboardingRequest(request: NextRequest, context: RouteContex
 
   const isOnboardingPath = upstreamPath.startsWith('api/v1/onboarding/')
   const isAuthPath = upstreamPath.startsWith('api/v1/auth/')
-  if (!isOnboardingPath && !isAuthPath) {
+  const isTrustPath = upstreamPath.startsWith('api/v1/trust/')
+  const isAuditPath = upstreamPath.startsWith('audits/')
+  if (!isOnboardingPath && !isAuthPath && !isTrustPath && !isAuditPath) {
     return NextResponse.json({ message: 'Unsupported catalogue route' }, { status: 404 })
   }
 
-  const targets = serviceBaseUrls(isAuthPath).map((baseUrl) => {
+  const targets = serviceBaseUrls(isAuthPath, isTrustPath, isAuditPath).map((baseUrl) => {
     const target = new URL(`${baseUrl.replace(/\/$/, '')}/${upstreamPath}`)
     request.nextUrl.searchParams.forEach((value, key) => target.searchParams.set(key, value))
     return target
@@ -104,7 +133,7 @@ async function proxyOnboardingRequest(request: NextRequest, context: RouteContex
     lastStatus = 502
   }
 
-  const serviceName = isAuthPath ? 'authentication service' : 'onboarding service'
+  const serviceName = isAuditPath ? 'audit service' : isTrustPath ? 'trust service' : isAuthPath ? 'authentication service' : 'onboarding service'
   if (lastBody) {
     return new NextResponse(lastBody, {
       status: lastStatus,

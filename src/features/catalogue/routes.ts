@@ -22,6 +22,8 @@ export const catalogueRoutes = {
   'organization-dashboard': '/organization/dashboard',
   'org-profile': '/organization/profile',
   'org-applications': '/organization/applications',
+  'org-users': '/organization/users',
+  'org-audit-logs': '/organization/audit-logs',
   'org-registration-builder': '/organization/registration-builder',
   'org-login-builder': '/organization/login-builder',
 } as const

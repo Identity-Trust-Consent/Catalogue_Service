@@ -27,6 +27,7 @@ const requiredRegistrationFields: Array<{ key: string; label: string }> = [
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
 const ONBOARDING_API_BASE_URL = process.env.NEXT_PUBLIC_ONBOARDING_API_BASE_URL || 'http://localhost:8081'
 const AUTH_API_BASE_URL = process.env.NEXT_PUBLIC_AUTH_API_BASE_URL || 'http://localhost:8082'
+const TRUST_API_BASE_URL = process.env.NEXT_PUBLIC_TRUST_API_BASE_URL || 'http://localhost:8087'
 const DIRECT_ONBOARDING_READ_PATHS = new Set([
   '/api/v1/onboarding/organizations',
   '/api/v1/onboarding/applications',
@@ -41,7 +42,11 @@ const getReadUrls = (path: string) => {
 
 const getServiceUrls = (path: string) => {
   const urls = [`/api/catalogue${path}`, `${API_BASE_URL}${path}`]
-  const directBaseUrl = path.startsWith('/api/v1/auth/') ? AUTH_API_BASE_URL : ONBOARDING_API_BASE_URL
+  const directBaseUrl = path.startsWith('/api/v1/trust/')
+    ? TRUST_API_BASE_URL
+    : path.startsWith('/api/v1/auth/')
+      ? AUTH_API_BASE_URL
+      : ONBOARDING_API_BASE_URL
   if (directBaseUrl !== API_BASE_URL) urls.push(`${directBaseUrl}${path}`)
   return urls
 }
@@ -104,9 +109,10 @@ const backendRequest = async <TResponse,>(path: string, init?: RequestInit): Pro
   let fetchError: unknown = null
   const isOnboardingPath = path.startsWith('/api/v1/onboarding/')
   const isAuthPath = path.startsWith('/api/v1/auth/')
+  const isTrustPath = path.startsWith('/api/v1/trust/')
   const urls = method === 'GET' && DIRECT_ONBOARDING_READ_PATHS.has(path)
     ? getReadUrls(path)
-    : isOnboardingPath || isAuthPath
+    : isOnboardingPath || isAuthPath || isTrustPath
       ? getServiceUrls(path)
       : [`${API_BASE_URL}${path}`]
   for (const url of urls) {

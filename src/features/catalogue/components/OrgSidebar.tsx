@@ -18,6 +18,8 @@ export default function OrgSidebar({ activeItem }: OrgSidebarProps) {
     if (item === 'Registration Builder') setView('org-registration-builder')
     if (item === 'Login Configuration') setView('org-login-builder')
     if (item === 'Applications') setView('org-applications')
+    if (item === 'Users') setView('org-users')
+    if (item === 'Audit Logs') setView('org-audit-logs')
   }
 
   return (

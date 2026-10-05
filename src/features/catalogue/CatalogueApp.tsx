@@ -8,8 +8,10 @@ import RegistrationPage from './pages/RegistrationPage'
 import RegistrationSuccessPage from './pages/RegistrationSuccessPage'
 import LoginBuilderPage from './pages/organization/LoginBuilderPage'
 import OrganizationApplicationsPage from './pages/organization/OrganizationApplicationsPage'
+import OrganizationAuditLogsPage from './pages/organization/OrganizationAuditLogsPage'
 import OrganizationDashboardPage from './pages/organization/OrganizationDashboardPage'
 import OrganizationProfilePage from './pages/organization/OrganizationProfilePage'
+import OrganizationUsersPage from './pages/organization/OrganizationUsersPage'
 import RegistrationBuilderPage from './pages/organization/RegistrationBuilderPage'
 import type { CatalogueView } from './routes'
 
@@ -31,6 +33,8 @@ function CatalogueRoutes() {
       {view === 'organization-dashboard' && <OrganizationDashboardPage />}
       {view === 'org-profile' && <OrganizationProfilePage />}
       {view === 'org-applications' && <OrganizationApplicationsPage />}
+      {view === 'org-users' && <OrganizationUsersPage />}
+      {view === 'org-audit-logs' && <OrganizationAuditLogsPage />}
       {view === 'org-registration-builder' && <RegistrationBuilderPage />}
       {view === 'org-login-builder' && <LoginBuilderPage />}
       <GlobalCatalogueModals />
