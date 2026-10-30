@@ -3,6 +3,7 @@
 import { AdminIcon } from '../../../components/ui'
 import type { ApplicationRecord, Organization, SchemaRecord } from '../../../types/catalogue'
 import type { CatalogueView } from '../routes'
+import RepositorySidebar from '../../consent/RepositorySidebar'
 
 interface PlatformSidebarProps {
   applications: ApplicationRecord[]
@@ -83,6 +84,7 @@ export default function PlatformSidebar({
           </ul>
         </div>
       ))}
+      <RepositorySidebar />
     </aside>
   )
 }

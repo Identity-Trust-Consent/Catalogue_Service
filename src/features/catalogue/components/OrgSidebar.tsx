@@ -3,6 +3,7 @@
 import { orgAdminMenu } from '../../../data/mockCatalogueData'
 import { AdminIcon } from '../../../components/ui'
 import { useCatalogue } from '../context/CatalogueContext'
+import RepositorySidebar from '../../consent/RepositorySidebar'
 
 interface OrgSidebarProps {
   activeItem: string
@@ -28,12 +29,13 @@ export default function OrgSidebar({ activeItem }: OrgSidebarProps) {
         <span className="platform-brand-icon"><AdminIcon name="shield" /></span>
         <span><strong>Identity OS</strong><small>Admin Console</small></span>
       </div>
-      <nav>
+      <nav aria-label="Organization navigation">
         {visibleMenu.map((item) => (
-          <button type="button" key={item} className={`menu-item ${item === activeItem ? 'active' : ''}`} onClick={() => handleClick(item)}>
+          <button type="button" key={item} aria-current={item === activeItem ? 'page' : undefined} className={`menu-item ${item === activeItem ? 'active' : ''}`} onClick={() => handleClick(item)}>
             <span className="nav-item-label"><AdminIcon name={item === 'Organization Profile' ? 'organizations' : item === 'Applications' ? 'applications' : item === 'Registration Builder' ? 'schema' : item === 'Login Configuration' ? 'auth' : item === 'Audit Logs' ? 'audit' : item === 'API Credentials' ? 'api' : item === 'Identity Management' || item === 'Users' ? 'identity' : item === 'Webhooks' ? 'trust' : 'dashboard'} />{item}</span>
           </button>
         ))}
+        <RepositorySidebar />
       </nav>
     </aside>
   )

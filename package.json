@@ -7,7 +7,8 @@
     "dev": "next dev --webpack",
     "build": "next build",
     "lint": "oxlint",
-    "start": "next start"
+    "start": "next start",
+    "test:consent-repository": "node --test scripts/consent-repository.test.mjs"
   },
   "dependencies": {
     "keycloak-js": "^26.2.4",

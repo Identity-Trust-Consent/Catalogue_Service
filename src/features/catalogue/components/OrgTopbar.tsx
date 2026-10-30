@@ -26,14 +26,14 @@ export default function OrgTopbar({ heading, subtitle, action }: OrgTopbarProps)
     <header className="org-console-topbar">
       <div className="org-console-title">
         <div className="eyebrow">Organization Admin</div>
-        {/* <h1>{heading}</h1> */}
+        <div className="org-console-page-title">{heading}</div>
         {subtitle && <p className="topbar-subtitle">{subtitle}</p>}
       </div>
       <div className="org-console-actions">
         {action}
         <button type="button" className="icon-button" title="Notifications"><AdminIcon name="notifications" /><span className="notification-dot" /></button>
         <div className="profile-menu">
-          <button type="button" className="profile-trigger" onClick={() => setProfileOpen((open) => !open)}><span>{initials}</span><strong>Admin</strong></button>
+          <button type="button" className="profile-trigger" aria-expanded={profileOpen} aria-label="Administrator account menu" onClick={() => setProfileOpen((open) => !open)}><span>{initials}</span><strong>Admin</strong></button>
           {profileOpen && <div className="profile-dropdown"><button type="button" onClick={handleLogout}>Log Out</button></div>}
         </div>
       </div>

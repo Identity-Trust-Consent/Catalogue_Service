@@ -7,6 +7,7 @@ import { AdminIcon } from '../../../../components/ui'
 import { readStorage } from '../../../../utils/storage'
 import OrgSidebar from '../../components/OrgSidebar'
 import OrgTopbar from '../../components/OrgTopbar'
+import AppLoading from '../../../../components/AppLoading'
 import { useCatalogue } from '../../context/CatalogueContext'
 
 const countByStatus = (items: Array<{ status: string }>) => ({
@@ -70,7 +71,7 @@ export default function OrganizationDashboardPage() {
     ...auditLogs.slice(0, 4).map((log) => ({ id: log.id, label: log.action, detail: log.details, time: log.timestamp, icon: 'audit' })),
   ].slice(0, 6)
 
-  if (!authorized) return <div>Checking authentication...</div>
+  if (!authorized) return <AppLoading message="Checking your session" />
 
   return (
     <div className="org-dashboard-shell org-console-shell">

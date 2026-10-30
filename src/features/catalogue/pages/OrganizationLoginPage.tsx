@@ -1,6 +1,6 @@
 'use client'
 
-import { ShieldCheck, UserCog } from 'lucide-react'
+import { UserCog } from 'lucide-react'
 import PageHeader from '../components/PageHeader'
 import { useCatalogue } from '../context/CatalogueContext'
 
