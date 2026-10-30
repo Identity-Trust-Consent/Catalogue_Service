@@ -65,6 +65,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import keycloak from "../lib/keycloak";
+import AppLoading from './AppLoading';
 
 export default function KeycloakProvider({
   children,
@@ -99,7 +100,7 @@ export default function KeycloakProvider({
   }, []);
 
   if (!ready) {
-    return <div>Loading...</div>;
+    return <AppLoading />;
   }
 
   return <>{children}</>;

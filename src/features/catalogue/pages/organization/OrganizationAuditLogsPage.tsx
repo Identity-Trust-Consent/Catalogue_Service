@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { RefreshCw } from 'lucide-react'
+import Link from 'next/link'
 import { AdminIcon } from '../../../../components/ui'
 import OrgSidebar from '../../components/OrgSidebar'
 import OrgTopbar from '../../components/OrgTopbar'
@@ -124,6 +126,14 @@ export default function OrganizationAuditLogsPage() {
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [revision, setRevision] = useState(0)
+
+  useEffect(() => {
+    const refresh = () => setRevision(value => value + 1)
+    const timer = window.setInterval(refresh, 10000)
+    window.addEventListener('focus', refresh)
+    return () => { clearInterval(timer); window.removeEventListener('focus', refresh) }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -154,7 +164,7 @@ export default function OrganizationAuditLogsPage() {
     return () => {
       cancelled = true
     }
-  }, [orgId])
+  }, [orgId, revision])
 
   const uniqueRecords = useMemo(() => {
     const seen = new Set<string>()
@@ -165,8 +175,11 @@ export default function OrganizationAuditLogsPage() {
       return true
     })
   }, [records])
-  const services = useMemo(() => Array.from(new Set(uniqueRecords.map((record) => record.service_name).filter(Boolean) as string[])), [uniqueRecords])
-  const actions = useMemo(() => Array.from(new Set(uniqueRecords.map((record) => record.action).filter(Boolean) as string[])), [uniqueRecords])
+  const services = useMemo(() => Array.from(new Set([
+    'consent-management-service',
+    ...uniqueRecords.map((record) => record.service_name).filter((service): service is string => Boolean(service) && service !== 'cms-service'),
+  ])), [uniqueRecords])
+  const actions = useMemo(() => Array.from(new Set(['CONSENT_NOTICE_CREATED', 'CONSENT_GRANTED', 'CONSENT_DECLINED', 'CONSENT_RENEWED', 'CONSENT_REVOKED', ...uniqueRecords.map((record) => record.action).filter(Boolean) as string[]])), [uniqueRecords])
   const successCount = uniqueRecords.filter((record) => normalizeStatus(record.status) === 'success').length
   const failedCount = uniqueRecords.filter((record) => normalizeStatus(record.status) === 'failed').length
 
@@ -187,13 +200,25 @@ export default function OrganizationAuditLogsPage() {
         (!term || searchText.includes(term)) &&
         (statusFilter === 'all' || status === statusFilter) &&
         (serviceFilter === 'all' || record.service_name === serviceFilter) &&
-        (actionFilter === 'all' || record.action === actionFilter)
+        (actionFilter === 'all' || (actionFilter === 'notice-submitted'
+          ? ['CONSENT_GRANTED', 'CONSENT_DECLINED'].includes(record.action || '')
+          : record.action === actionFilter))
       )
     })
   }, [actionFilter, search, serviceFilter, statusFilter, uniqueRecords])
 
   const selectedRecord = filteredRecords.find((record) => record.id === selectedId) || filteredRecords[0] || null
+  const selectedMetadata = (() => {
+    try {
+      const value = typeof selectedRecord?.metadata === 'string' ? JSON.parse(selectedRecord.metadata) : selectedRecord?.metadata
+      return value && typeof value === 'object' ? value as Record<string, unknown> : {}
+    } catch { return {} }
+  })()
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / AUDIT_LOGS_PER_PAGE))
+  const selectedNoticeId = String(selectedMetadata.noticeId || (selectedRecord?.entity_type === 'CONSENT_NOTICE' ? selectedRecord.entity_id || '' : ''))
+  const showConsentAction = (action: string) => {
+    setSearch(''); setStatusFilter('all'); setServiceFilter(action === 'all' ? 'all' : 'consent-management-service'); setActionFilter(action); setSelectedId(''); setPage(0)
+  }
   const currentPage = Math.min(page, totalPages - 1)
   const visibleRecords = filteredRecords.slice(currentPage * AUDIT_LOGS_PER_PAGE, currentPage * AUDIT_LOGS_PER_PAGE + AUDIT_LOGS_PER_PAGE)
   const firstVisibleRecord = filteredRecords.length ? currentPage * AUDIT_LOGS_PER_PAGE + 1 : 0
@@ -209,12 +234,23 @@ export default function OrganizationAuditLogsPage() {
       <main className="org-main org-console-main org-audit-main">
         <OrgTopbar heading={`Audit Logs - ${currentOrg?.name || orgId || 'Organization'}`} subtitle="Track identity, consent, login, and admin activity from the audit service." />
         <section className="org-console-content org-audit-content">
+          <div className="repository-toolbar"><p>Notice creation and consent decisions appear here automatically.</p><button type="button" className="secondary-button" disabled={loading} onClick={() => setRevision(value => value + 1)}><RefreshCw size={16} aria-hidden="true" />Refresh logs</button></div>
           <section className="org-users-kpi-grid">
             <article className="org-widget-card blue"><span><AdminIcon name="audit" /></span><strong>{uniqueRecords.length}</strong><label>Total Events</label><small>{loading ? 'loading records' : 'latest audit records'}</small></article>
             <article className="org-widget-card green"><span><AdminIcon name="check" /></span><strong>{successCount}</strong><label>Successful Events</label><small>completed operations</small></article>
             <article className="org-widget-card orange"><span><AdminIcon name="security" /></span><strong>{failedCount}</strong><label>Failed Events</label><small>needs review</small></article>
           </section>
 
+          <div className="audit-quick-filters" role="group" aria-label="Consent audit events">
+            <button type="button" aria-pressed={actionFilter === 'all'} onClick={() => showConsentAction('all')}>All events</button>
+            <button type="button" aria-pressed={actionFilter === 'CONSENT_NOTICE_CREATED'} onClick={() => showConsentAction('CONSENT_NOTICE_CREATED')}>Notice created</button>
+            <button type="button" aria-pressed={actionFilter === 'notice-submitted'} onClick={() => showConsentAction('notice-submitted')}>Notice submitted</button>
+            <button type="button" aria-pressed={actionFilter === 'CONSENT_RENEWED'} onClick={() => showConsentAction('CONSENT_RENEWED')}>Reconsent / Renewal</button>
+            <button type="button" aria-pressed={actionFilter === 'CONSENT_REVOKED'} onClick={() => showConsentAction('CONSENT_REVOKED')}>Revocation</button>
+          </div>
+          {actionFilter === 'CONSENT_NOTICE_CREATED' && <p className="repository-muted">Shows notices generated for users. Select an event to see the user, notice template and creation time.</p>}
+          {actionFilter === 'notice-submitted' && <p className="repository-muted">Shows submitted notice decisions: consent granted or declined. Select an event to see the user, decision, selected activities and submission time.</p>}
+          {['CONSENT_RENEWED', 'CONSENT_REVOKED'].includes(actionFilter) && <p className="repository-muted">Select an event to see the admin, consent ID and reason. For older records, <Link href="/organization/consent/manage-consents">open the consent record’s audit history</Link>.</p>}
           <section className="org-chart-panel audit-filter-panel">
             <label>
               <span>Search logs</span>
@@ -240,6 +276,7 @@ export default function OrganizationAuditLogsPage() {
               <span>Action</span>
               <select value={actionFilter} onChange={(event) => setActionFilter(event.target.value)}>
                 <option value="all">All actions</option>
+                <option value="notice-submitted">Notice Submitted (Granted / Declined)</option>
                 {actions.map((action) => <option key={action} value={action}>{formatLabel(action)}</option>)}
               </select>
             </label>
@@ -302,7 +339,14 @@ export default function OrganizationAuditLogsPage() {
                     <div><span>Application</span><strong>{safeValue(selectedRecord.application_id)}</strong></div>
                     <div><span>IP Address</span><strong>{safeValue(selectedRecord.ip_address)}</strong></div>
                     <div><span>Decision</span><strong>{formatLabel(selectedRecord.decision)}</strong></div>
+                    {selectedMetadata.forMinor === true && <><div><span>Consent on behalf of</span><strong>Child / minor</strong></div><div><span>Guardian verification</span><strong>{selectedMetadata.guardianVerificationMode === 'DEMO_ONLY' ? 'Demo only — identity and guardianship unverified' : 'Not recorded'}</strong></div></>}
+                    {['CONSENT_NOTICE', 'CONSENT'].includes(selectedRecord.entity_type || '') && <>
+                      <div><span>Notice template</span><strong>{String(selectedMetadata.templateName || selectedMetadata.templateCode || '-')} · v{String(selectedMetadata.templateVersion || '-')}</strong></div>
+                      {selectedRecord.entity_type === 'CONSENT_NOTICE' && <div><span>Selected activities</span><strong>{Array.isArray(selectedMetadata.selectedRuleIds) ? selectedMetadata.selectedRuleIds.length : 0}</strong></div>}
+                      {/^[0-9a-f-]{36}$/i.test(selectedNoticeId) && <div><span>Notice record</span><Link href={`/organization/consent/notices/${selectedNoticeId}`}>View notice and consent history</Link></div>}
+                    </>}
                   </div>
+                  {typeof selectedMetadata.reason === 'string' && <div className="audit-action-reason"><h4>Reason for this action</h4><p>{selectedMetadata.reason}</p></div>}
 
                   <div className="audit-json-grid">
                     <div>

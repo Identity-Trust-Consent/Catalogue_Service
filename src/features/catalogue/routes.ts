@@ -26,6 +26,7 @@ export const catalogueRoutes = {
   'org-audit-logs': '/organization/audit-logs',
   'org-registration-builder': '/organization/registration-builder',
   'org-login-builder': '/organization/login-builder',
+  'org-consent-repository': '/organization/consent/business-units',
 } as const
 
 export type CatalogueView = keyof typeof catalogueRoutes

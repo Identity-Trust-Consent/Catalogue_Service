@@ -1,206 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { privacyDetails } from '../../../src/features/consent/notice-privacy'
 
-const CMP_BASE_URL = process.env.CMP_BASE_URL || 'http://localhost:3001'
-const CMP_API_KEY = process.env.CMP_API_KEY
-const CMP_BUSINESS_PROCESS_CODE = process.env.CMP_BUSINESS_PROCESS_CODE
-const CMP_BUSINESS_PROCESS_VERSION = Number(process.env.CMP_BUSINESS_PROCESS_VERSION || '1')
-const AUDIT_SERVICE_URL = process.env.AUDIT_SERVICE_URL || 'http://localhost:8086'
+const base = () => (process.env.CONSENT_SERVICE_URL || 'http://localhost:8088').replace(/\/$/, '')
 
-const cleanReferencePart = (value: string) =>
-  value.trim().replace(/[^a-zA-Z0-9()._\-/]+/g, '_').slice(0, 80)
-
-const describeError = (value: any): string => {
-  if (!value) return ''
-  if (typeof value === 'string') return value
-  if (Array.isArray(value)) return value.map(describeError).filter(Boolean).join('; ')
-  if (typeof value === 'object') {
-    if (value.message) return describeError(value.message)
-    if (value.error) return describeError(value.error)
-    if (value.code) return String(value.code)
-    return JSON.stringify(value)
-  }
-  return String(value)
-}
-
-const normalizeNoticeUrl = (noticeUrl: string) => {
-  const cmpUrl = new URL(CMP_BASE_URL)
-  const url = new URL(noticeUrl)
-  url.protocol = cmpUrl.protocol
-  url.host = cmpUrl.host
-  return url.toString()
-}
-
-const auditConsentNotice = async ({
-  clientId,
-  consentFields,
-  dataPrincipalId,
-  redirectUri,
-  status,
-  errorMessage,
-  noticeUrl,
-}: {
-  clientId: string
-  consentFields: string[]
-  dataPrincipalId: string
-  redirectUri: string
-  status: 'SUCCESS' | 'FAILED'
-  errorMessage?: string
-  noticeUrl?: string
-}) => {
+async function forward(path: string, body: object, token?: string) {
   try {
-    await fetch(`${AUDIT_SERVICE_URL.replace(/\/$/, '')}/audits`, {
-      method: 'POST',
-      cache: 'no-store',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        origin: 'cms-service',
-        action: status === 'SUCCESS' ? 'CONSENT_NOTICE_CREATED' : 'CONSENT_NOTICE_CREATION_FAILED',
-        httpMethod: 'POST',
-        endpoint: '/api/consent-notice',
-        entityType: 'CONSENT_NOTICE',
-        entityId: clientId,
-        actorUserId: dataPrincipalId,
-        applicationId: clientId,
-        status,
-        body: {
-          clientId,
-          redirectUri,
-          consentFields,
-        },
-        metadata: {
-          noticeUrl,
-          errorMessage,
-          source: 'Catalogue_Service',
-        },
-        isoTime: new Date().toISOString(),
-      }),
+    const response = await fetch(`${base()}/api/v1/consent/registration-notices${path}`, {
+      method: 'POST', cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15000),
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...(token ? { 'X-Notice-Token': token } : {}) },
+      body: JSON.stringify(body),
     })
-  } catch (error) {
-    console.error('Consent notice audit was not recorded:', error)
+    if (response.status === 401 || response.status === 403) {
+      return NextResponse.json({ detail: 'The running Consent Management Service does not allow registration notices. Restart consent-management-service with the updated code, then try again.' }, { status: 502 })
+    }
+    const result = await response.json().catch(() => null)
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      const detail = response.status === 404
+        ? 'The registration-notice endpoint is missing. Restart consent-management-service with the updated code.'
+        : `Consent Management Service returned an empty or non-JSON response (HTTP ${response.status}). Check the backend logs.`
+      return NextResponse.json({ detail }, { status: 502 })
+    }
+    return NextResponse.json(response.ok ? { ...result, privacy: privacyDetails() } : result, { status: response.status, headers: { 'Cache-Control': 'no-store' } })
+  } catch {
+    return NextResponse.json({ detail: 'Consent Management Service is unavailable. Please try opening the notice again.' }, { status: 502 })
   }
 }
 
 export async function POST(request: NextRequest) {
-  if (!CMP_API_KEY || !CMP_BUSINESS_PROCESS_CODE) {
-    return NextResponse.json(
-      { message: 'CMP integration is not configured.' },
-      { status: 500 },
-    )
+  const body = await request.json().catch(() => null)
+  if (!body || typeof body.clientId !== 'string' || !body.clientId.trim() || typeof body.dataPrincipalId !== 'string' || !body.dataPrincipalId.trim()) {
+    return NextResponse.json({ detail: 'An application and user identifier are required to open a notice.' }, { status: 400 })
   }
-
-  try {
-    const body = await request.json()
-    const fields = body.fields || {}
-    const clientId = String(body.clientId || '')
-    const redirectUri = String(body.redirectUri || '')
-    const consentRedirectUri = String(body.consentRedirectUri || redirectUri)
-    const consentFields = Array.isArray(body.consentFields) ? body.consentFields : []
-    const referenceNonce = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const dataPrincipalId = String(
-      fields.email || fields.username || fields.mobile || fields.phone || '',
-    ).trim()
-
-    if (!clientId || !consentRedirectUri || !dataPrincipalId) {
-      await auditConsentNotice({
-        clientId,
-        consentFields,
-        dataPrincipalId,
-        redirectUri: consentRedirectUri,
-        status: 'FAILED',
-        errorMessage: 'clientId, consentRedirectUri, and a user identifier are required.',
-      })
-      return NextResponse.json(
-        { message: 'clientId, consentRedirectUri, and a user identifier are required.' },
-        { status: 400 },
-      )
-    }
-
-    const response = await fetch(`${CMP_BASE_URL.replace(/\/$/, '')}/cms/api/v1/notices/grant`, {
-      method: 'POST',
-      cache: 'no-store',
-      headers: {
-        Authorization: `Bearer ${CMP_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        reference_id: cleanReferencePart(`registration-${clientId}-${dataPrincipalId}-${referenceNonce}`),
-        data_principal_id: cleanReferencePart(dataPrincipalId),
-        notice_settings: {
-          expires_in_hours: 24,
-          redirection_type: 'redirect',
-          redirection_url: consentRedirectUri,
-          default_language: 'en',
-          view_mode: 'purpose_of_consent',
-        },
-        consent_settings: {
-          expires_in_hours: 8760,
-        },
-        business_process: {
-          code: CMP_BUSINESS_PROCESS_CODE,
-          version: CMP_BUSINESS_PROCESS_VERSION,
-        },
-        metadata: [
-          { key: 'client_id', value: clientId },
-          { key: 'registration_source', value: 'identity_os' },
-          { key: 'redirect_uri', value: redirectUri || consentRedirectUri },
-          { key: 'pii_fields', value: consentFields.join(', ') || 'registration_pii' },
-        ],
-      }),
-    })
-
-    const data = await response.json().catch(() => null)
-    if (!response.ok) {
-      const message = describeError(data?.message || data?.error || data)
-      await auditConsentNotice({
-        clientId,
-        consentFields,
-        dataPrincipalId,
-        redirectUri: consentRedirectUri,
-        status: 'FAILED',
-        errorMessage: message || 'CMP notice creation failed.',
-      })
-      return NextResponse.json(
-        { message: message || 'CMP notice creation failed.' },
-        { status: response.status },
-      )
-    }
-
-    const noticeUrl = data?.data?.link_details?.link
-    if (!noticeUrl) {
-      await auditConsentNotice({
-        clientId,
-        consentFields,
-        dataPrincipalId,
-        redirectUri: consentRedirectUri,
-        status: 'FAILED',
-        errorMessage: 'CMP did not return a notice link.',
-      })
-      return NextResponse.json(
-        { message: 'CMP did not return a notice link.' },
-        { status: 502 },
-      )
-    }
-
-    await auditConsentNotice({
-      clientId,
-      consentFields,
-      dataPrincipalId,
-      redirectUri: consentRedirectUri,
-      status: 'SUCCESS',
-      noticeUrl: normalizeNoticeUrl(noticeUrl),
-    })
-    return NextResponse.json({ noticeUrl: normalizeNoticeUrl(noticeUrl) })
-  } catch (error) {
-    console.error('Unable to create CMP notice:', error)
-
-    const message =
-      error instanceof Error && error.message
-        ? `Unable to create CMP notice: ${error.message}`
-        : 'Unable to create CMP notice.'
-
-    return NextResponse.json(
-      { message },
-      { status: 502 },
-    )
+  const templateCode = process.env.CONSENT_NOTICE_TEMPLATE_CODE
+  if (!templateCode) return NextResponse.json({ detail: 'Set CONSENT_NOTICE_TEMPLATE_CODE to the published registration notice template code.' }, { status: 503 })
+  if (body.dateOfBirth !== undefined && (typeof body.dateOfBirth !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.dateOfBirth))) {
+    return NextResponse.json({ detail: 'Enter a valid date of birth before opening the notice.' }, { status: 400 })
   }
+  return forward('', { clientId: body.clientId, dataPrincipalId: body.dataPrincipalId, templateCode, ...(body.dateOfBirth ? { dateOfBirth: body.dateOfBirth } : {}) })
+}
+
+export async function PUT(request: NextRequest) {
+  const body = await request.json().catch(() => null)
+  if (!body || typeof body.noticeId !== 'string' || !/^[0-9a-f-]{36}$/i.test(body.noticeId)
+      || typeof body.token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(body.token)
+      || !['accepted', 'rejected'].includes(body.decision) || !Array.isArray(body.selectedRuleIds)
+      || body.selectedRuleIds.length > 1000 || body.selectedRuleIds.some((id: unknown) => !Number.isSafeInteger(id) || Number(id) <= 0)) {
+    return NextResponse.json({ detail: 'A valid notice, token and consent decision are required.' }, { status: 400 })
+  }
+  return forward(`/${body.noticeId}/decision`, { decision: body.decision, selectedRuleIds: body.selectedRuleIds, ...(typeof body.guardianReference === 'string' ? { guardianReference: body.guardianReference } : {}) }, body.token)
+}
+
+export async function PATCH(request: NextRequest) {
+  const body = await request.json().catch(() => null)
+  if (!body || typeof body.noticeId !== 'string' || !/^[0-9a-f-]{36}$/i.test(body.noticeId)
+      || typeof body.token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(body.token) || !body.guardian || typeof body.guardian !== 'object') {
+    return NextResponse.json({ detail: 'A valid notice, token and guardian details are required.' }, { status: 400 })
+  }
+  const { name, email, mobile, dateOfBirth, relationship, declaration, verificationMethod, aadhaar, otp } = body.guardian
+  return forward(`/${body.noticeId}/guardian-verification`, { name, email, ...(verificationMethod === 'phone' ? { mobile } : {}), dateOfBirth, relationship, declaration: declaration === true, verificationMethod, ...(verificationMethod === 'aadhaar' ? { aadhaar } : {}), otp }, body.token)
 }

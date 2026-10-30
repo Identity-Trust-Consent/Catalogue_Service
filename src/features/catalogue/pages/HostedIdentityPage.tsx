@@ -1,7 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Eye, EyeOff, ShieldCheck, Fingerprint, Sparkles } from 'lucide-react'
 import { AdminIcon } from '../../../components/ui'
+import { hostedFieldError, hostedFieldKind, isMinorBirthDate, localDateToday, pendingHostedVerifications } from './hosted-field-validation'
+import RegistrationNotice, { type RegistrationNoticeData } from './RegistrationNotice'
 
 type HostedMode = 'register' | 'login' | 'choice'
 
@@ -123,6 +126,7 @@ const requiresOtpVerification = (field: HostedField) => {
   const labelName = normalizeFieldToken(field.label)
   return Boolean(
     field.verification?.toUpperCase() === 'OTP'
+    || ['email', 'aadhaar', 'mobile'].includes(hostedFieldKind(field))
     || field.type === 'email'
     || field.type === 'phone'
     || verificationFieldNames.has(fieldName)
@@ -131,9 +135,7 @@ const requiresOtpVerification = (field: HostedField) => {
 }
 
 const usesBackendEmailOtp = (field: HostedField) => {
-  const fieldName = normalizeFieldToken(field.name)
-  const labelName = normalizeFieldToken(field.label)
-  return field.type === 'email' || fieldName === 'email' || labelName === 'email'
+  return hostedFieldKind(field) === 'email'
 }
 
 const getConsentRequiredFields = (schema: HostedSchema | undefined, fields: HostedField[]) => {
@@ -250,24 +252,19 @@ const createConsentNotice = async (body: Record<string, unknown>) => {
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(describeError(data.message || data.error || data) || 'CMP notice creation failed.')
+    throw new Error(describeError(data.detail || data.message || data.error || data) || 'Unable to open the consent notice.')
   }
-  if (!data.noticeUrl) {
-    throw new Error('CMP did not return a notice link.')
+  if (!data.id || !data.token || !data.template || !Array.isArray(data.activities)) {
+    throw new Error('The consent service did not return a valid notice.')
   }
-  return data.noticeUrl as string
+  return data as RegistrationNoticeData
 }
 
 const buildHostedFlowUrl = (mode: 'register' | 'login', clientId: string, redirectUri: string) =>
   `/identity/${mode}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}`
 
-const buildConsentReturnUrl = () => {
-  const url = new URL(window.location.href)
-  url.searchParams.set('cmp_consent', 'granted')
-  return url.toString()
-}
-
-export default function HostedIdentityPage({ initialClientId = '', initialRedirectUri = '', mode }: HostedIdentityPageProps) {
+export default function HostedIdentityPage({ initialClientId = '', initialRedirectUri = '', mode: initialMode }: HostedIdentityPageProps) {
+  const [mode, setMode] = useState(initialMode)
   const [clientId, setClientId] = useState(initialClientId)
   const [redirectUri, setRedirectUri] = useState(initialRedirectUri)
   const [initialUsername, setInitialUsername] = useState('')
@@ -276,17 +273,41 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
   const [applications, setApplications] = useState<HostedApplication[]>([])
   const [schemas, setSchemas] = useState<HostedSchema[]>([])
   const [formValues, setFormValues] = useState<Record<string, string>>({})
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({})
   const [queryReady, setQueryReady] = useState(false)
   const [configurationReady, setConfigurationReady] = useState(false)
   const [message, setMessage] = useState('')
   const [messageTone, setMessageTone] = useState<'error' | 'success'>('error')
   const [submitting, setSubmitting] = useState(false)
   const [consentSubmitting, setConsentSubmitting] = useState(false)
+  const [consentError, setConsentError] = useState('')
+  const [activeNotice, setActiveNotice] = useState<RegistrationNoticeData | null>(null)
+  const [activeNoticeBirthDate, setActiveNoticeBirthDate] = useState('')
+  const consentRequestLock = useRef(false)
   const [consentGranted, setConsentGranted] = useState(false)
   const [consentPrincipal, setConsentPrincipal] = useState('')
+  const [consentBirthDate, setConsentBirthDate] = useState('')
   const [otpState, setOtpState] = useState<Record<string, { sent?: boolean; sending?: boolean; verifying?: boolean; verified?: boolean; otp?: string; value?: string; verificationId?: string }>>({})
   const otpRequestLocks = useRef<Record<string, boolean>>({})
   const otpVerifyLocks = useRef<Record<string, boolean>>({})
+
+  const resetHostedForm = useCallback(() => {
+    setFormValues({}); setFieldErrors({}); setVisiblePasswords({}); setOtpState({}); setActiveNotice(null)
+    setMessage(''); setConsentError(''); setConsentGranted(false); setConsentPrincipal(''); setConsentBirthDate('')
+  }, [])
+  useEffect(() => { setMode(initialMode); resetHostedForm() }, [initialMode, resetHostedForm])
+  useEffect(() => {
+    const restoreMode = () => {
+      const path = window.location.pathname
+      if (path === '/identity/login' || path === '/identity/register') {
+        setMode(path.endsWith('/login') ? 'login' : 'register')
+        resetHostedForm()
+      }
+    }
+    window.addEventListener('popstate', restoreMode)
+    return () => window.removeEventListener('popstate', restoreMode)
+  }, [resetHostedForm])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -313,9 +334,10 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
           const application = normalizeApp(appResult.data)
           setApplications((prev) => [application, ...prev.filter((item) => item.id !== application.id && item.clientId !== application.clientId)])
         }
-        if (mode !== 'choice') {
-          const schemaType = mode === 'register' ? 'REGISTRATION' : 'LOGIN'
-          const schemaResult = await fetchHostedJson(`/api/v1/onboarding/identity/schema?clientId=${encodeURIComponent(clientId)}&schemaType=${schemaType}`)
+        const schemaResults = await Promise.allSettled(['REGISTRATION', 'LOGIN'].map(schemaType => fetchHostedJson(`/api/v1/onboarding/identity/schema?clientId=${encodeURIComponent(clientId)}&schemaType=${schemaType}`)))
+        for (const result of schemaResults) {
+          if (result.status !== 'fulfilled') continue
+          const schemaResult = result.value
           if (schemaResult.response.ok && schemaResult.data) {
             const schema = normalizeSchema(schemaResult.data)
             setSchemas((prev) => [schema, ...prev.filter((item) => (item.versionId || item.id) !== (schema.versionId || schema.id))])
@@ -332,56 +354,39 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
     }
 
     loadDirectConfiguration()
-  }, [clientId, mode, queryReady])
+  }, [clientId, queryReady])
 
   const app = useMemo(() => applications.find((item) => appKeys(item).includes(clientId)), [applications, clientId])
   const callbackUri = redirectUri || app?.redirectUri || ''
   const registrationSchema = getApprovedSchema(schemas, app, 'registration')
   const loginSchema = getApprovedSchema(schemas, app, 'login')
   const currentMode = mode === 'choice' ? 'choice' : mode
-  const fields = currentMode === 'register' ? getRegistrationFields(registrationSchema) : getLoginFields(loginSchema)
+  const fields = currentMode === 'register' ? [...getRegistrationFields(registrationSchema)].sort((a, b) => Number(hostedFieldKind(b) === 'date') - Number(hostedFieldKind(a) === 'date')) : getLoginFields(loginSchema)
   const otpFields = currentMode === 'register' ? fields.filter(requiresOtpVerification) : []
   const currentSubmittedFields = buildIdentityFieldsPayload(fields, formValues)
   const currentDataPrincipalId = currentSubmittedFields.email || currentSubmittedFields.username || currentSubmittedFields.mobile || currentSubmittedFields.phone || ''
+  const birthField = fields.find(field => hostedFieldKind(field) === 'date')
+  const currentBirthDate = birthField ? formValues[birthField.name] || '' : ''
+  const minorRegistration = currentMode === 'register' && Boolean(birthField && !hostedFieldError({ ...birthField, required: true }, currentBirthDate) && isMinorBirthDate(currentBirthDate))
   const consentFields = currentMode === 'register' ? getConsentRequiredFields(registrationSchema, fields) : []
-  const consentRequired = consentFields.length > 0
-  const schemaConsentKey = currentMode === 'register'
-    ? `identity_registration_consent:${clientId}:${registrationSchema?.versionId || registrationSchema?.id || 'schema'}:${consentFields.map((field) => normalizeFieldToken(field.name)).join('|')}`
-    : ''
-  const pendingConsentPrincipalKey = `${schemaConsentKey}:pending-principal`
-  const registrationDraftKey = `identity_registration_draft:${clientId}`
-  const registrationVerificationDraftKey = `identity_registration_verification:${clientId}`
+  const consentRequired = consentFields.length > 0 || minorRegistration
   const schemaMissing = Boolean(app && currentMode === 'register' && !registrationSchema) || Boolean(app && currentMode === 'login' && !loginSchema)
   const fieldsMissing = Boolean(app && currentMode === 'login' && loginSchema && fields.length === 0)
   const authSwitchUrl = buildHostedFlowUrl(currentMode === 'register' ? 'login' : 'register', clientId, callbackUri)
-  const consentGrantedForCurrentPrincipal = consentGranted && Boolean(currentDataPrincipalId) && consentPrincipal === currentDataPrincipalId
-
-  useEffect(() => {
-    if (currentMode !== 'register' || !clientId || !registrationSchema) return
-    try {
-      const storedDraft = sessionStorage.getItem(registrationDraftKey)
-      if (storedDraft) setFormValues((prev) => ({ ...prev, ...JSON.parse(storedDraft) }))
-      const storedVerificationDraft = sessionStorage.getItem(registrationVerificationDraftKey)
-      if (storedVerificationDraft) setOtpState((prev) => ({ ...prev, ...JSON.parse(storedVerificationDraft) }))
-      const params = new URLSearchParams(window.location.search)
-      const returnedFromConsent = params.get('cmp_consent') === 'granted'
-      if (returnedFromConsent) {
-        const principal = sessionStorage.getItem(pendingConsentPrincipalKey) || ''
-        sessionStorage.setItem(schemaConsentKey, principal)
-        setConsentGranted(true)
-        setConsentPrincipal(principal)
-        setMessageTone('success')
-        setMessage('Your Consent submitted successfully. You can now submit your registration by click on Register button.')
-      } else {
-        const principal = sessionStorage.getItem(schemaConsentKey) || ''
-        setConsentGranted(Boolean(principal))
-        setConsentPrincipal(principal)
-      }
-    } catch {
-      setConsentGranted(false)
-      setConsentPrincipal('')
-    }
-  }, [clientId, currentMode, pendingConsentPrincipalKey, registrationDraftKey, registrationSchema, registrationVerificationDraftKey, schemaConsentKey])
+  const switchHostedMode = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    event.preventDefault()
+    if (submitting || consentSubmitting || Object.values(otpState).some(state => state.sending || state.verifying)) return
+    const nextMode = currentMode === 'register' ? 'login' : 'register'
+    const nextUrl = new URL(window.location.href)
+    nextUrl.pathname = `/identity/${nextMode}`
+    nextUrl.searchParams.set('client_id', clientId); nextUrl.searchParams.set('redirect_uri', callbackUri)
+    window.history.pushState(null, '', nextUrl.pathname + nextUrl.search)
+    setMode(nextMode); resetHostedForm()
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  const consentGrantedForCurrentPrincipal = consentGranted && Boolean(currentDataPrincipalId) && consentPrincipal === currentDataPrincipalId && consentBirthDate === currentBirthDate
+  const pendingOtpFields = pendingHostedVerifications(otpFields, formValues, otpState)
 
   useEffect(() => {
     if (currentMode !== 'register' || !initialUsername || !fields.length) return
@@ -392,10 +397,17 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
 
   const updateField = (name: string, value: string) => {
     setFormValues((prev) => ({ ...prev, [name]: value }))
+    const field = fields.find(item => item.name === name)
+    if (field && fieldErrors[name]) setFieldErrors(prev => ({ ...prev, [name]: hostedFieldError(field, value) }))
     setOtpState((prev) => prev[name]?.verified && prev[name]?.value !== value ? { ...prev, [name]: { sent: false, verified: false, otp: '', value } } : prev)
   }
   const sendDummyOtp = async (field: HostedField) => {
     const value = String(formValues[field.name] || '').trim()
+    const validationError = hostedFieldError(field, formValues[field.name] || '')
+    if (validationError) {
+      setFieldErrors(prev => ({ ...prev, [field.name]: validationError }))
+      return
+    }
     if (!value) {
       setMessageTone('error')
       setMessage(`Enter ${field.label || field.name} before verification.`)
@@ -474,37 +486,51 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
     }
   }
   const giveConsent = async () => {
-    if (!app || !callbackUri) return
+    if (consentRequestLock.current) return
+    setConsentError('')
+    if (!app || !callbackUri) {
+      setConsentError('Application configuration or redirect URI is missing. Reload the registration page and try again.')
+      return
+    }
     const submittedFields = buildIdentityFieldsPayload(fields, formValues)
     const dataPrincipalId = submittedFields.email || submittedFields.username || submittedFields.mobile || submittedFields.phone || ''
     if (!dataPrincipalId) {
       setMessageTone('error')
       setMessage('Enter email, username, or phone before giving consent.')
+      setConsentError('Enter email, username, or phone before opening the notice.')
       return
     }
+    if (birthField) {
+      const birthError = hostedFieldError({ ...birthField, required: true }, currentBirthDate)
+      if (birthError) { setConsentError(birthError); return }
+    }
+    consentRequestLock.current = true
     setConsentSubmitting(true)
     setMessage('')
     try {
-      sessionStorage.setItem(registrationDraftKey, JSON.stringify(formValues))
-      sessionStorage.setItem(registrationVerificationDraftKey, JSON.stringify(otpState))
-      sessionStorage.setItem(pendingConsentPrincipalKey, dataPrincipalId)
-      const noticeUrl = await createConsentNotice({
+      const notice = await createConsentNotice({
         clientId,
-        redirectUri: callbackUri,
-        consentRedirectUri: buildConsentReturnUrl(),
-        fields: submittedFields,
-        consentFields: consentFields.map((field) => field.label || field.name),
-        schemaId: registrationSchema?.versionId || registrationSchema?.id,
+        dataPrincipalId,
+        ...(currentBirthDate ? { dateOfBirth: currentBirthDate } : {}),
       })
-      window.location.href = noticeUrl
+      setActiveNotice(notice)
+      setActiveNoticeBirthDate(currentBirthDate)
+      window.scrollTo({ top: 0 })
     } catch (error) {
       setMessageTone('error')
-      setMessage(error instanceof Error ? error.message : 'CMP notice creation failed.')
+      setMessage(error instanceof Error ? error.message : 'Unable to open the consent notice.')
+      setConsentError(error instanceof Error ? error.message : 'Unable to open the consent notice. Please try again.')
     } finally {
+      consentRequestLock.current = false
       setConsentSubmitting(false)
     }
   }
   const submit = async () => {
+    if (currentMode === 'register') {
+      const errors = Object.fromEntries(fields.map(field => [field.name, hostedFieldError(field, formValues[field.name] || '')]))
+      setFieldErrors(errors)
+      if (Object.values(errors).some(Boolean)) return
+    }
     if (!app) {
       setMessageTone('error')
       setMessage('Application was not found. Use the public application id shown in Identity OS, for example app_xxxxx.')
@@ -559,6 +585,8 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
           verificationStatus,
         })
         setFormValues({})
+        setFieldErrors({})
+        setVisiblePasswords({})
         setOtpState({})
         setConsentGranted(false)
         setConsentPrincipal('')
@@ -566,17 +594,10 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
         setMessage(completionPurpose === 'complete_profile'
           ? 'Profile completed successfully. Your trust score can now be refreshed.'
           : 'Registration completed successfully. You can now login with this username and password.')
-        sessionStorage.removeItem(registrationDraftKey)
-        sessionStorage.removeItem(registrationVerificationDraftKey)
-        sessionStorage.removeItem(pendingConsentPrincipalKey)
-        sessionStorage.removeItem(schemaConsentKey)
         if (returnUrl) {
           window.location.href = returnUrl
           return
         }
-        const url = new URL(window.location.href)
-        url.searchParams.delete('cmp_consent')
-        window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
         window.scrollTo({ top: 0, behavior: 'smooth' })
         return
       }
@@ -600,7 +621,13 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
     }
   }
 
-  if (!queryReady || !configurationReady) return <div className="hosted-identity-shell"><div className="hosted-card"><p>Loading Identity OS configuration...</p></div></div>
+  if (!queryReady || !configurationReady) return <div className="hosted-identity-shell hosted-auth-shell"><div className="hosted-card hosted-auth-card"><p>Loading Identity OS configuration...</p></div></div>
+
+  if (activeNotice) return <RegistrationNotice notice={activeNotice} onClose={() => { setActiveNotice(null); window.scrollTo({ top: 0 }) }} onAccepted={principal => {
+    setConsentGranted(true); setConsentPrincipal(principal); setConsentBirthDate(activeNoticeBirthDate); setActiveNotice(null); setFieldErrors({}); setConsentError('')
+    setMessageTone('success'); setMessage('Your consent has been saved. Complete any pending field verification, then select Register.')
+    window.scrollTo({ top: 0 })
+  }} />
 
   if (mode === 'choice') {
     return (
@@ -620,8 +647,16 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
   }
 
   return (
-    <div className="hosted-identity-shell">
-      <section className="hosted-card">
+    <div className={`hosted-identity-shell hosted-auth-shell hosted-split-shell${currentMode === 'login' ? ' is-login' : ''}`}>
+      <aside className="hosted-auth-art" aria-label="Identity OS introduction">
+        <div className="hosted-art-orbit hosted-art-orbit-one" aria-hidden="true" /><div className="hosted-art-orbit hosted-art-orbit-two" aria-hidden="true" />
+        <div className="hosted-art-content"><span className="hosted-art-eyebrow"><Sparkles size={16} aria-hidden="true" />IDENTITY OS</span><div className="hosted-art-symbol" aria-hidden="true"><Fingerprint size={88} strokeWidth={1} /></div>
+          <h2>{currentMode === 'login' ? 'Welcome back.\nPick up where you left off.' : 'Your next chapter\nstarts here.'}</h2>
+          <p>{currentMode === 'login' ? 'Sign in to your account and continue to your application.' : 'Create your account with clear choices about how your personal information is used.'}</p>
+          <div className="hosted-art-note"><ShieldCheck size={20} aria-hidden="true" /><span>Your identity. Your choices.</span></div>
+        </div>
+      </aside>
+      <section className="hosted-card hosted-auth-card">
         <div className="hosted-header">
           <span className="hosted-brand"><AdminIcon name="shield" />Identity OS</span>
           <span className="status-pill-ui status-approved">{app?.status || 'unknown'}</span>
@@ -637,16 +672,36 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
         {fieldsMissing && <div className="hosted-warning">Login configuration does not define renderable fields. Re-submit this login configuration so Identity OS stores loginFields for this application.</div>}
         {message && <div className={messageTone === 'success' ? 'hosted-success' : 'hosted-error'}>{message}</div>}
         <form className="hosted-form" onSubmit={(event) => { event.preventDefault(); submit() }}>
-          {fields.map((field) => (
-            <label key={field.name}>{field.label || field.name}
+          {fields.map((field) => {
+            const kind = hostedFieldKind(field)
+            const inputId = `hosted-field-${field.name}`
+            const input = <input
+              id={inputId}
+              type={kind === 'password' ? visiblePasswords[field.name] ? 'text' : 'password' : kind === 'date' ? 'date' : kind === 'email' ? 'email' : kind === 'mobile' ? 'tel' : 'text'}
+              inputMode={kind === 'aadhaar' || kind === 'mobile' ? 'numeric' : undefined}
+              minLength={kind === 'aadhaar' ? 12 : kind === 'mobile' ? 10 : undefined}
+              maxLength={kind === 'aadhaar' ? 12 : kind === 'mobile' ? 10 : undefined}
+              pattern={kind === 'aadhaar' ? '[0-9]{12}' : kind === 'mobile' ? '[0-9]{10}' : undefined}
+              max={kind === 'date' ? localDateToday() : undefined}
+              required={currentMode === 'register' && field.required}
+              autoComplete={kind === 'password' ? currentMode === 'register' ? 'new-password' : 'current-password' : kind === 'email' ? 'email' : kind === 'mobile' ? 'tel-national' : kind === 'date' ? 'bday' : undefined}
+              value={formValues[field.name] || ''}
+              aria-invalid={Boolean(fieldErrors[field.name])}
+              aria-describedby={[fieldErrors[field.name] ? `${inputId}-error` : '', minorRegistration && field.name === birthField?.name ? `${inputId}-minor` : ''].filter(Boolean).join(' ') || undefined}
+              onBlur={() => { if (currentMode === 'register' && (formValues[field.name] || fieldErrors[field.name])) setFieldErrors(prev => ({ ...prev, [field.name]: hostedFieldError(field, formValues[field.name] || '') })) }}
+              onChange={(event) => updateField(field.name, event.target.value)}
+              placeholder={field.label || field.name}
+            />
+            return <div className="hosted-field" key={field.name}>
+              <label htmlFor={inputId}>{field.label || field.name}</label>
               {field.type === 'dropdown'
-                ? <select value={formValues[field.name] || ''} onChange={(event) => updateField(field.name, event.target.value)}><option value="">Select {field.label || field.name}</option>{(field.options || []).map((option) => <option key={option} value={option}>{option}</option>)}</select>
+                ? <select id={inputId} value={formValues[field.name] || ''} onChange={(event) => updateField(field.name, event.target.value)}><option value="">Select {field.label || field.name}</option>{(field.options || []).map((option) => <option key={option} value={option}>{option}</option>)}</select>
                 : field.type === 'checkbox'
-                  ? <input type="checkbox" checked={formValues[field.name] === 'true'} onChange={(event) => updateField(field.name, String(event.target.checked))} />
+                  ? <input id={inputId} type="checkbox" checked={formValues[field.name] === 'true'} onChange={(event) => updateField(field.name, String(event.target.checked))} />
                   : requiresOtpVerification(field) && currentMode === 'register'
                     ? <div className="hosted-verify-field">
                         <div className="hosted-verify-input-row">
-                          <input type={field.type === 'email' ? 'email' : 'text'} value={formValues[field.name] || ''} onChange={(event) => updateField(field.name, event.target.value)} placeholder={field.label || field.name} />
+                          {input}
                           <button type="button" disabled={otpState[field.name]?.sending} className={otpState[field.name]?.verified && otpState[field.name]?.value === formValues[field.name] ? 'hosted-verify-button verified' : 'hosted-verify-button'} onClick={() => sendDummyOtp(field)}>{otpState[field.name]?.verified && otpState[field.name]?.value === formValues[field.name] ? 'Verified' : otpState[field.name]?.sending ? 'Sending...' : 'Verify'}</button>
                         </div>
                         {otpState[field.name]?.sent && !(otpState[field.name]?.verified && otpState[field.name]?.value === formValues[field.name]) && <div className="hosted-otp-row">
@@ -655,19 +710,24 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
                         </div>}
                         {otpState[field.name]?.verified && otpState[field.name]?.value === formValues[field.name] && <small className="hosted-verified-note">Verified with OTP</small>}
                       </div>
-                    : <input type={field.type === 'password' ? 'password' : field.type === 'email' ? 'email' : 'text'} value={formValues[field.name] || ''} onChange={(event) => updateField(field.name, event.target.value)} placeholder={field.label || field.name} />}
-            </label>
-          ))}
-          {currentMode === 'register' && consentRequired && <div className={consentGrantedForCurrentPrincipal ? 'hosted-success hosted-consent-panel' : 'hosted-warning hosted-consent-panel'}>
-            <span>
-              I consent to the collection and processing of my personal data for the stated purpose.{' '}
-              {!consentGrantedForCurrentPrincipal && <button type="button" className="hosted-consent-link" disabled={consentSubmitting} onClick={giveConsent}>{consentSubmitting ? 'Opening notice...' : 'Click here'}</button>}
-            </span>
+                    : kind === 'password' ? <div className="hosted-password-field">{input}<button type="button" className="hosted-password-toggle" aria-label={`${visiblePasswords[field.name] ? 'Hide' : 'Show'} ${field.label || field.name}`} title={visiblePasswords[field.name] ? 'Hide password' : 'Show password'} aria-controls={inputId} aria-pressed={!!visiblePasswords[field.name]} onClick={() => setVisiblePasswords(prev => ({ ...prev, [field.name]: !prev[field.name] }))}>{visiblePasswords[field.name] ? <EyeOff size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}</button></div> : input}
+              {fieldErrors[field.name] && <small id={`${inputId}-error`} className="hosted-field-error" role="alert">{fieldErrors[field.name]}</small>}
+              {minorRegistration && field.name === birthField?.name && <small id={`${inputId}-minor`} className="hosted-minor-notice" role="status">This is a minor application. Parent / guardian consent will be requested when you select “Click here”.</small>}
+            </div>
+          })}
+          {currentMode === 'register' && consentRequired && <div className={`${consentGrantedForCurrentPrincipal ? 'hosted-success' : 'hosted-warning'} hosted-consent-panel`}>
+            <span>{consentGrantedForCurrentPrincipal ? 'Consent saved.' : <>{minorRegistration ? "A parent or guardian must consent to the use of the child's personal data." : 'I consent to the collection and processing of my personal data for the stated purpose.'}{' '}<button type="button" className="hosted-consent-link" disabled={consentSubmitting} onClick={giveConsent}>{consentSubmitting ? 'Opening notice...' : 'Click here'}</button></>}</span>
+            {consentError && <p className="hosted-field-error" role="alert">{consentError}</p>}
           </div>}
-          <button className="primary-button hosted-submit" disabled={submitting || consentSubmitting || !app || app.status !== 'approved' || schemaMissing || fields.length === 0 || (currentMode === 'register' && otpFields.some((field) => String(formValues[field.name] || '').trim() && (!otpState[field.name]?.verified || otpState[field.name]?.value !== formValues[field.name]))) || (currentMode === 'register' && consentRequired && !consentGrantedForCurrentPrincipal)}>{submitting ? 'Processing...' : currentMode === 'register' ? 'Register' : 'Login and return'}</button>
+          {currentMode === 'register' && pendingOtpFields.length > 0 && <div id="hosted-registration-verification" className="hosted-verification-help" role="status" aria-live="polite">
+            <strong>Complete verification before registering:</strong>
+            <ul>{pendingOtpFields.map(field => <li key={field.name}><a href={`#hosted-field-${field.name}`}>{field.label || field.name}</a></li>)}</ul>
+            <p>Select Verify, enter the code, then select Submit OTP.</p>
+          </div>}
+          <button className="primary-button hosted-submit" aria-describedby={currentMode === 'register' && pendingOtpFields.length > 0 ? 'hosted-registration-verification' : undefined} disabled={submitting || consentSubmitting || !app || app.status !== 'approved' || schemaMissing || fields.length === 0 || pendingOtpFields.length > 0 || (currentMode === 'register' && consentRequired && !consentGrantedForCurrentPrincipal)}>{submitting ? 'Processing...' : currentMode === 'register' ? 'Register' : 'Login and return'}</button>
         </form>
         {clientId && callbackUri && <div className="hosted-auth-switch">
-          {currentMode === 'register' ? 'Already registered?' : 'Need an account?'} <a href={authSwitchUrl}>{currentMode === 'register' ? 'Login' : 'Register'}</a>
+          {currentMode === 'register' ? 'Already registered?' : 'Need an account?'} <a href={authSwitchUrl} onClick={switchHostedMode}>{currentMode === 'register' ? 'Login' : 'Register'}</a>
         </div>}
         {/* <div className="hosted-footer">Redirect URI: <code>{callbackUri || '-'}</code></div> */}
       </section>
