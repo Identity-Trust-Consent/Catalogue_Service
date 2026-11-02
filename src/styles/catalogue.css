@@ -6200,9 +6200,42 @@ textarea {
   .hosted-auth-card .hosted-submit { width:100%; }
 }
 .hosted-identity-shell.hosted-split-shell { display:block; position:relative; overflow-x:clip; background:linear-gradient(140deg,#102c56,#344f9b 55%,#7974cf); }
-.hosted-split-shell .hosted-auth-card { position:relative; z-index:2; width:50%; min-height:100dvh; padding:44px clamp(26px,4vw,76px); background:#fcfdff; border:0; transform:translateX(0); transition:transform 800ms cubic-bezier(.65,0,.25,1); animation:none; display:flex; flex-direction:column; justify-content:center; }
+.hosted-split-shell .hosted-auth-card { position:relative; z-index:2; width:50%; min-height:100dvh; padding:44px clamp(24px,3vw,56px); color:#edf3ff; color-scheme:dark; background:radial-gradient(ellipse at 100% 0%,#6554bb38,transparent 60%),radial-gradient(ellipse at 0% 100%,#239ab52b,transparent 55%),#101c32; border:0; transform:translateX(0); transition:transform 800ms cubic-bezier(.65,0,.25,1); animation:none; display:flex; flex-direction:column; justify-content:center; }
 .hosted-split-shell.is-login .hosted-auth-card { transform:translateX(100%); }
-.hosted-split-shell .hosted-auth-card> * { max-width:480px; flex-shrink:0; }
+.hosted-split-shell .hosted-auth-card> * { max-width:560px; flex-shrink:0; }
+.hosted-auth-surface { padding:clamp(24px,2.5vw,40px); border:1px solid #b2c9ff26; border-radius:28px; background:linear-gradient(145deg,#263956cc,#1b2844cc); box-shadow:0 28px 80px #040b1e55,inset 0 1px 0 #ffffff0d; }
+.hosted-split-shell .hosted-brand { color:#bacdff; font-weight:700; }
+.hosted-split-shell .status-approved { color:#a0efd0; background:#123f3e; border-color:#62d7b440; }
+.hosted-split-shell .hosted-app-icon { border:1px solid #a5b4fc55; border-radius:16px; background:linear-gradient(140deg,#567dff,#7955dc); box-shadow:0 8px 24px #5268ff33; }
+.hosted-split-shell .hosted-app-summary h1 { color:#f4f7ff; font-weight:650; letter-spacing:-.035em; font-size:28px; line-height:1.2; }
+.hosted-split-shell .hosted-app-summary p { color:#b6c5df; font-size:14px; }
+.hosted-split-shell .hosted-form label { color:#c8d5ec; font-weight:600; font-size:11px; letter-spacing:.09em; }
+.hosted-split-shell .hosted-form input,.hosted-split-shell .hosted-form select { min-height:48px; border:1px solid #7894c14d; border-radius:12px; background:#13223c; color:#f0f5ff; box-shadow:inset 0 2px 4px #070f221a; transition:border-color 180ms,box-shadow 180ms,background 180ms; }
+.hosted-split-shell .hosted-form input::placeholder { color:#a0b2ce; }
+.hosted-split-shell .hosted-form input:hover,.hosted-split-shell .hosted-form select:hover { border-color:#93acdb99; }
+.hosted-split-shell .hosted-form input:focus,.hosted-split-shell .hosted-form select:focus { outline:none; border-color:#9eacff; background:#182943; box-shadow:0 0 0 3px #8996ff26; }
+.hosted-split-shell .hosted-password-toggle { color:#b8c8e4; }
+.hosted-split-shell .hosted-password-toggle:hover { color:#fff; background:#b9ccff1a; }
+.hosted-split-shell .hosted-verify-button,.hosted-split-shell .hosted-otp-button { min-height:48px; border:1px solid #8f9eef66; border-radius:12px; background:#354771; color:#e4ebff; font-weight:650; }
+.hosted-split-shell .hosted-verify-button:hover:not(:disabled),.hosted-split-shell .hosted-otp-button:hover:not(:disabled) { background:#44598c; border-color:#a4b6ff; }
+.hosted-split-shell .hosted-verify-button.verified { color:#a0efd0; background:#16433f; border-color:#62d7b466; }
+.hosted-split-shell .hosted-verified-note { color:#a0efd0; }
+.hosted-split-shell .hosted-card .primary-button { min-height:48px; border:1px solid #b4bbff44 !important; border-radius:12px; background:linear-gradient(110deg,#426ff0,#7956df) !important; box-shadow:0 8px 24px #3e53d433; font-weight:700; }
+.hosted-split-shell .hosted-card .primary-button:hover:not(:disabled) { background:linear-gradient(110deg,#527fff,#8966ef) !important; box-shadow:0 8px 28px #536cf259; }
+.hosted-split-shell .hosted-card .primary-button:disabled { opacity:.55; box-shadow:none; }
+.hosted-split-shell .hosted-auth-switch { color:#b5c4df; font-weight:500; }
+.hosted-split-shell .hosted-auth-switch a { color:#c7c4ff; font-weight:700; text-decoration:underline; text-underline-offset:4px; }
+.hosted-split-shell .hosted-auth-switch a:hover { color:#fff; }
+.hosted-split-shell .hosted-warning { color:#f8dba2; background:#463922; border:1px solid #d4ad5e44; }
+.hosted-split-shell .hosted-error { color:#ffd1d8; background:#482b3c; border:1px solid #ed899a44; }
+.hosted-split-shell .hosted-success { color:#b0efd9; background:#1b403d; border:1px solid #6bd2ad44; }
+.hosted-split-shell .hosted-field-error,.hosted-split-shell .hosted-minor-notice { color:#ffb7c2; }
+.hosted-split-shell .hosted-field input[aria-invalid="true"] { border-color:#ff9bad; }
+.hosted-split-shell .hosted-verification-help { color:#ccd9f0; background:#283a59; border-color:#8caae044; }
+.hosted-split-shell .hosted-verification-help strong { color:#eef3ff; }
+.hosted-split-shell .hosted-verification-help a,.hosted-split-shell .hosted-consent-link { color:#d4ceff; }
+.hosted-split-shell .hosted-consent-link:hover:not(:disabled) { color:#fff; }
+.hosted-split-shell :is(a,button):focus-visible { outline:2px solid #bcc8ff; outline-offset:4px; }
 .hosted-split-shell .hosted-header { border:0; padding:0; margin-bottom:30px; }
 .hosted-split-shell .hosted-form { grid-template-columns:minmax(0,1fr); gap:20px; }
 .hosted-split-shell .hosted-submit { width:100%; }
@@ -6221,6 +6254,7 @@ textarea {
 @media(max-width:900px) {
   .hosted-identity-shell.hosted-split-shell { display:flex; flex-direction:column; }
   .hosted-split-shell .hosted-auth-card,.hosted-split-shell.is-login .hosted-auth-card { width:100%; min-height:0; transform:none; padding:32px 24px 40px; order:1; }
+  .hosted-auth-surface { border-radius:22px; padding:26px; }
   .hosted-split-shell .hosted-auth-art,.hosted-split-shell.is-login .hosted-auth-art { position:relative; width:100%; min-height:0; height:auto; transform:none; padding:30px 24px; order:0; }
   .hosted-art-content { width:100%; }
   .hosted-art-content h2 { font-size:28px; margin-top:16px; }
@@ -6229,4 +6263,10 @@ textarea {
 }
 @media(prefers-reduced-motion:reduce) {
   .hosted-split-shell .hosted-auth-card,.hosted-split-shell .hosted-auth-art { transition:none; }
+  .hosted-split-shell .hosted-form input,.hosted-split-shell .hosted-form select { transition:none; }
+}
+@media(max-width:420px) {
+  .hosted-split-shell .hosted-auth-card,.hosted-split-shell.is-login .hosted-auth-card { padding:20px 14px 28px; }
+  .hosted-auth-surface { padding:22px 18px; border-radius:20px; }
+  .hosted-split-shell .hosted-app-summary h1 { font-size:24px; }
 }
