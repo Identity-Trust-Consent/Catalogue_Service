@@ -6181,7 +6181,6 @@ textarea {
 .hosted-verification-help strong { color:#243854; }
 .hosted-verification-help ul { margin:7px 0; padding-left:20px; }
 .hosted-verification-help p { margin:7px 0 0; }
-.hosted-minor-notice { display:block; margin-top:8px; color:#dc2626; font-size:13px; font-weight:600; line-height:1.6; }
 .notice-guardian-otp { grid-column:1/-1; display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px; padding:16px; border:1px solid #c7d8ff; border-radius:10px; background:white; }
 .notice-guardian-otp p { flex-basis:100%; margin:0; font-size:13px; }
 .notice-guardian-otp label { flex:1; min-width:130px; }
@@ -6229,4 +6228,15 @@ textarea {
 }
 @media(prefers-reduced-motion:reduce) {
   .hosted-split-shell .hosted-auth-card,.hosted-split-shell .hosted-auth-art { transition:none; }
+}
+.notice-guardian-method-help { grid-column:1/-1; margin:0; color:#52627b; font-size:13px; }
+.hosted-identity-shell.hosted-registration-shell { display:block; background:#f5f8ff; }
+.hosted-registration-shell .hosted-auth-card { width:100%; min-height:100dvh; background:linear-gradient(180deg,#f5f8ff 0,#fff 260px); padding:36px clamp(20px,5vw,96px) 48px; }
+.hosted-registration-shell .hosted-auth-card> * { max-width:1120px; }
+.hosted-registration-shell .hosted-form { grid-template-columns:minmax(0,1fr); gap:24px; }
+.hosted-registration-shell .hosted-field>label { font-size:13px; letter-spacing:.025em; }
+.hosted-registration-shell .hosted-auth-switch { padding-top:24px; }
+@media(max-width:760px) {
+  .hosted-registration-shell .hosted-auth-card { padding:24px 20px 32px; }
+  .hosted-registration-shell .hosted-form { gap:20px; }
 }

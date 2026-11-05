@@ -647,15 +647,15 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
   }
 
   return (
-    <div className={`hosted-identity-shell hosted-auth-shell hosted-split-shell${currentMode === 'login' ? ' is-login' : ''}`}>
-      <aside className="hosted-auth-art" aria-label="Identity OS introduction">
+    <div className={`hosted-identity-shell hosted-auth-shell${currentMode === 'login' ? ' hosted-split-shell is-login' : ' hosted-registration-shell'}`}>
+      {currentMode === 'login' && <aside className="hosted-auth-art" aria-label="Identity OS introduction">
         <div className="hosted-art-orbit hosted-art-orbit-one" aria-hidden="true" /><div className="hosted-art-orbit hosted-art-orbit-two" aria-hidden="true" />
         <div className="hosted-art-content"><span className="hosted-art-eyebrow"><Sparkles size={16} aria-hidden="true" />IDENTITY OS</span><div className="hosted-art-symbol" aria-hidden="true"><Fingerprint size={88} strokeWidth={1} /></div>
           <h2>{currentMode === 'login' ? 'Welcome back.\nPick up where you left off.' : 'Your next chapter\nstarts here.'}</h2>
           <p>{currentMode === 'login' ? 'Sign in to your account and continue to your application.' : 'Create your account with clear choices about how your personal information is used.'}</p>
           <div className="hosted-art-note"><ShieldCheck size={20} aria-hidden="true" /><span>Your identity. Your choices.</span></div>
         </div>
-      </aside>
+      </aside>}
       <section className="hosted-card hosted-auth-card">
         <div className="hosted-header">
           <span className="hosted-brand"><AdminIcon name="shield" />Identity OS</span>
@@ -687,7 +687,7 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
               autoComplete={kind === 'password' ? currentMode === 'register' ? 'new-password' : 'current-password' : kind === 'email' ? 'email' : kind === 'mobile' ? 'tel-national' : kind === 'date' ? 'bday' : undefined}
               value={formValues[field.name] || ''}
               aria-invalid={Boolean(fieldErrors[field.name])}
-              aria-describedby={[fieldErrors[field.name] ? `${inputId}-error` : '', minorRegistration && field.name === birthField?.name ? `${inputId}-minor` : ''].filter(Boolean).join(' ') || undefined}
+              aria-describedby={fieldErrors[field.name] ? `${inputId}-error` : undefined}
               onBlur={() => { if (currentMode === 'register' && (formValues[field.name] || fieldErrors[field.name])) setFieldErrors(prev => ({ ...prev, [field.name]: hostedFieldError(field, formValues[field.name] || '') })) }}
               onChange={(event) => updateField(field.name, event.target.value)}
               placeholder={field.label || field.name}
@@ -712,7 +712,6 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
                       </div>
                     : kind === 'password' ? <div className="hosted-password-field">{input}<button type="button" className="hosted-password-toggle" aria-label={`${visiblePasswords[field.name] ? 'Hide' : 'Show'} ${field.label || field.name}`} title={visiblePasswords[field.name] ? 'Hide password' : 'Show password'} aria-controls={inputId} aria-pressed={!!visiblePasswords[field.name]} onClick={() => setVisiblePasswords(prev => ({ ...prev, [field.name]: !prev[field.name] }))}>{visiblePasswords[field.name] ? <EyeOff size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}</button></div> : input}
               {fieldErrors[field.name] && <small id={`${inputId}-error`} className="hosted-field-error" role="alert">{fieldErrors[field.name]}</small>}
-              {minorRegistration && field.name === birthField?.name && <small id={`${inputId}-minor`} className="hosted-minor-notice" role="status">This is a minor application. Parent / guardian consent will be requested when you select “Click here”.</small>}
             </div>
           })}
           {currentMode === 'register' && consentRequired && <div className={`${consentGrantedForCurrentPrincipal ? 'hosted-success' : 'hosted-warning'} hosted-consent-panel`}>

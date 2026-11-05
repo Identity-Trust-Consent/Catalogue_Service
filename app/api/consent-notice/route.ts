@@ -56,6 +56,7 @@ export async function PATCH(request: NextRequest) {
       || typeof body.token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(body.token) || !body.guardian || typeof body.guardian !== 'object') {
     return NextResponse.json({ detail: 'A valid notice, token and guardian details are required.' }, { status: 400 })
   }
-  const { name, email, mobile, dateOfBirth, relationship, declaration, verificationMethod, aadhaar, otp } = body.guardian
-  return forward(`/${body.noticeId}/guardian-verification`, { name, email, ...(verificationMethod === 'phone' ? { mobile } : {}), dateOfBirth, relationship, declaration: declaration === true, verificationMethod, ...(verificationMethod === 'aadhaar' ? { aadhaar } : {}), otp }, body.token)
+  const { name, email, mobile, dateOfBirth, relationship, declaration, verificationMethod, aadhaar, otp, demoCode } = body.guardian
+  const otpMethod = verificationMethod === 'phone' || verificationMethod === 'aadhaar'
+  return forward(`/${body.noticeId}/guardian-verification`, { name, email, ...(verificationMethod === 'phone' ? { mobile } : {}), dateOfBirth, relationship, declaration: declaration === true, verificationMethod, ...(verificationMethod === 'aadhaar' ? { aadhaar } : {}), ...(otpMethod ? { otp } : { demoCode }) }, body.token)
 }

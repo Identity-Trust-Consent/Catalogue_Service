@@ -5,6 +5,12 @@ import { ArrowLeft, ArrowRight, Building2, Check, Clock3, FileText, Info, Extern
 import { AdminIcon } from '../../../components/ui'
 import { hostedFieldError, localDateToday } from './hosted-field-validation'
 
+const guardianMethods = [
+  { value: 'phone', label: 'Phone number (demo OTP)', hint: 'Use a test phone number. Phone OTP alone does not verify age or guardianship.' },
+  { value: 'aadhaar', label: 'Aadhaar number (demo OTP)', hint: 'Use a test number only. No Aadhaar service is contacted.' },
+  { value: 'digilocker', label: 'DigiLocker (demo)', hint: 'Try a simulated DigiLocker check. No DigiLocker account or documents are accessed.' },
+]
+
 export interface RegistrationNoticeData {
   id: string
   token: string
@@ -37,14 +43,15 @@ export default function RegistrationNotice({ notice, onClose, onAccepted, previe
   const [selected, setSelected] = useState<number[]>(() => notice.activities.filter(activity => activity.mandatory).map(activity => activity.id))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [guardian, setGuardian] = useState({ name: '', email: '', mobile: '', dateOfBirth: '', relationship: '', declaration: false, verificationMethod: 'phone', aadhaar: '', otp: '' })
+  const [guardian, setGuardian] = useState({ name: '', email: '', mobile: '', dateOfBirth: '', relationship: '', declaration: false, verificationMethod: 'phone', aadhaar: '', otp: '', demoCode: '' })
+  const usesOtp = guardian.verificationMethod === 'phone' || guardian.verificationMethod === 'aadhaar'
   const [otpSent, setOtpSent] = useState(false)
   const [otpConfirmed, setOtpConfirmed] = useState(false)
   const [guardianReference, setGuardianReference] = useState('')
   const guardianForm = useRef<HTMLFieldSetElement>(null)
   const updateGuardian = (patch: Partial<typeof guardian>) => {
     const identifierChanged = patch.verificationMethod !== undefined || patch.mobile !== undefined || patch.aadhaar !== undefined
-    setGuardian(current => ({ ...current, ...patch, ...(identifierChanged ? { otp: '' } : {}) })); setGuardianReference(''); setError('')
+    setGuardian(current => ({ ...current, ...patch, ...(identifierChanged ? { otp: '', demoCode: '' } : {}) })); setGuardianReference(''); setError('')
     if (identifierChanged) { setOtpSent(false); setOtpConfirmed(false) }
     if (patch.otp !== undefined) setOtpConfirmed(false)
   }
@@ -57,6 +64,9 @@ export default function RegistrationNotice({ notice, onClose, onAccepted, previe
     if (guardian.otp !== '123456') { setError('Invalid demo OTP. Enter 123456.'); return }
     setOtpConfirmed(true); setError('')
   }
+  const simulateGuardianProvider = () => {
+    setGuardian(current => ({ ...current, demoCode: '123456' })); setGuardianReference(''); setError('')
+  }
   const guardianDetailsValid = () => {
     const inputs = guardianForm.current?.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input,select')
     if (!inputs) return false
@@ -64,7 +74,7 @@ export default function RegistrationNotice({ notice, onClose, onAccepted, previe
     if (invalid) { invalid.scrollIntoView({ block: 'center', behavior: 'smooth' }); invalid.reportValidity(); return false }
     const birthError = hostedFieldError({ name: 'dob', type: 'date', required: true }, guardian.dateOfBirth)
     if (birthError) { setError(birthError); return false }
-    if (!otpSent || !otpConfirmed) { setError('Verify the guardian using phone or Aadhaar and the demo OTP 123456.'); return false }
+    if (usesOtp ? !otpSent || !otpConfirmed : guardian.demoCode !== '123456') { setError(usesOtp ? 'Verify the selected method using demo OTP 123456.' : 'Run the selected demo verification before continuing.'); return false }
     return true
   }
   const validateGuardian = async () => {
@@ -127,17 +137,18 @@ export default function RegistrationNotice({ notice, onClose, onAccepted, previe
               <label><span>Full name <span aria-hidden="true">*</span></span><input required minLength={2} maxLength={255} autoComplete="name" value={guardian.name} onChange={event => updateGuardian({ name: event.target.value })} /></label>
               <label><span>Relationship <span aria-hidden="true">*</span></span><select required value={guardian.relationship} onChange={event => updateGuardian({ relationship: event.target.value })}><option value="">Select relationship</option><option value="parent">Parent</option><option value="lawful_guardian">Lawful guardian</option></select></label>
               <label><span>Email <span aria-hidden="true">*</span></span><input required type="email" maxLength={255} autoComplete="email" value={guardian.email} onChange={event => updateGuardian({ email: event.target.value })} /></label>
-              <label><span>Verify using <span aria-hidden="true">*</span></span><select value={guardian.verificationMethod} onChange={event => updateGuardian({ verificationMethod: event.target.value })}><option value="phone">Phone number</option><option value="aadhaar">Aadhaar number</option></select></label>
+              <label><span>Verify using <span aria-hidden="true">*</span></span><select aria-describedby="guardian-method-help" value={guardian.verificationMethod} onChange={event => updateGuardian({ verificationMethod: event.target.value })}>{guardianMethods.map(method => <option key={method.value} value={method.value}>{method.label}</option>)}</select></label>
               {guardian.verificationMethod === 'phone'
                 ? <label><span>Phone number <span aria-hidden="true">*</span></span><input required type="tel" inputMode="numeric" pattern="[0-9]{10}" maxLength={10} autoComplete="tel-national" value={guardian.mobile} onChange={event => updateGuardian({ mobile: event.target.value })} /></label>
-                : <label><span>Aadhaar number <span aria-hidden="true">*</span></span><input required inputMode="numeric" pattern="[0-9]{12}" minLength={12} maxLength={12} autoComplete="off" value={guardian.aadhaar} onChange={event => updateGuardian({ aadhaar: event.target.value })} /></label>}
-              <div className="notice-guardian-otp"><button type="button" className="secondary-button" onClick={sendGuardianOtp}>{otpSent ? 'Resend demo OTP' : 'Send demo OTP'}</button>
+                : guardian.verificationMethod === 'aadhaar' ? <label><span>Aadhaar number <span aria-hidden="true">*</span></span><input required inputMode="numeric" pattern="[0-9]{12}" minLength={12} maxLength={12} autoComplete="off" value={guardian.aadhaar} onChange={event => updateGuardian({ aadhaar: event.target.value })} /></label> : null}
+              <p id="guardian-method-help" className="notice-guardian-method-help">{guardianMethods.find(method => method.value === guardian.verificationMethod)?.hint}</p>
+              {usesOtp ? <div className="notice-guardian-otp"><button type="button" className="secondary-button" onClick={sendGuardianOtp}>{otpSent ? 'Resend demo OTP' : 'Send demo OTP'}</button>
                 {otpSent && <><p role="status">Demo OTP: <strong>123456</strong>. No SMS is sent.</p><label>Enter OTP<input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code" value={guardian.otp} onChange={event => updateGuardian({ otp: event.target.value })} /></label><button type="button" className="secondary-button" disabled={otpConfirmed} onClick={confirmGuardianOtp}>{otpConfirmed ? 'Demo OTP verified' : 'Verify OTP'}</button></>}
-              </div>
+              </div> : <div className="notice-guardian-otp"><button type="button" className="secondary-button" disabled={guardian.demoCode === '123456'} onClick={simulateGuardianProvider}>{guardian.demoCode === '123456' ? 'Demo check complete' : 'Run demo verification'}</button>{guardian.demoCode === '123456' && <p role="status">Demo verification complete. Identity, age and guardianship remain unverified.</p>}</div>}
               <label><span>Date of birth <span aria-hidden="true">*</span></span><input required type="date" min="1900-01-01" max={localDateToday()} value={guardian.dateOfBirth} onChange={event => updateGuardian({ dateOfBirth: event.target.value })} /></label>
               <label className="notice-guardian-declaration"><input required type="checkbox" checked={guardian.declaration} onChange={event => updateGuardian({ declaration: event.target.checked })} /><span>I declare that I am at least 18 and am this child's parent or lawful guardian, authorised to make this decision.</span></label>
             </fieldset>
-            <p>Verify either your phone or Aadhaar using the demo OTP, review the activities, then choose <strong>Agree and continue</strong>.</p>
+            <p>Complete one verification option, review the activities, then choose <strong>Agree and continue</strong>. All available options currently run in demo mode.</p>
           </>}
         </section>}
         <section className="notice-summary" aria-labelledby="notice-summary-title"><h2 id="notice-summary-title">Why we’re asking for your consent</h2><p className="notice-description">{notice.template.grantDescription}</p></section>

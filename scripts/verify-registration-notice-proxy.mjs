@@ -76,6 +76,11 @@ try {
   assert.equal((await send('PATCH', { noticeId, guardian })).status, 400)
   assert.equal((await send('POST', { clientId: 'app_test', dataPrincipalId: 'child@example.test', dateOfBirth: 'invalid' })).status, 400)
   assert.equal(calls.length, count)
+  for (const verificationMethod of ['digilocker', 'existing_verified_account', 'authorised_identity_token']) {
+    response = await send('PATCH', { noticeId, token, guardian: { ...guardian, verificationMethod, demoCode: '123456', aadhaar: 'not-forwarded', providerPassword: 'not-forwarded' } })
+    assert.equal(response.status, 200)
+    assert.deepEqual(calls.at(-1).body, { name: guardian.name, email: guardian.email, dateOfBirth: guardian.dateOfBirth, relationship: guardian.relationship, declaration: true, verificationMethod, demoCode: '123456' })
+  }
   console.log('Registration notice proxy passed: native backend, configured template, token forwarding, private-field filtering and invalid-request rejection.')
 } finally {
   if (next.exitCode === null) {
