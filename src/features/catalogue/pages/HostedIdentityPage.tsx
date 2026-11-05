@@ -657,6 +657,7 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
         </div>
       </aside>}
       <section className="hosted-card hosted-auth-card">
+        <div className="hosted-auth-surface">
         <div className="hosted-header">
           <span className="hosted-brand"><AdminIcon name="shield" />Identity OS</span>
           <span className="status-pill-ui status-approved">{app?.status || 'unknown'}</span>
@@ -729,6 +730,7 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
           {currentMode === 'register' ? 'Already registered?' : 'Need an account?'} <a href={authSwitchUrl} onClick={switchHostedMode}>{currentMode === 'register' ? 'Login' : 'Register'}</a>
         </div>}
         {/* <div className="hosted-footer">Redirect URI: <code>{callbackUri || '-'}</code></div> */}
+        </div>
       </section>
     </div>
   )
