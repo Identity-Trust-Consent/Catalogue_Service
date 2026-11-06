@@ -647,15 +647,15 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
   }
 
   return (
-    <div className={`hosted-identity-shell hosted-auth-shell${currentMode === 'login' ? ' hosted-split-shell is-login' : ' hosted-registration-shell'}`}>
-      {currentMode === 'login' && <aside className="hosted-auth-art" aria-label="Identity OS introduction">
+    <div className={`hosted-identity-shell hosted-auth-shell hosted-split-shell${currentMode === 'login' ? ' is-login' : ' is-register'}`}>
+      <aside className="hosted-auth-art" aria-label="Identity OS introduction">
         <div className="hosted-art-orbit hosted-art-orbit-one" aria-hidden="true" /><div className="hosted-art-orbit hosted-art-orbit-two" aria-hidden="true" />
         <div className="hosted-art-content"><span className="hosted-art-eyebrow"><Sparkles size={16} aria-hidden="true" />IDENTITY OS</span><div className="hosted-art-symbol" aria-hidden="true"><Fingerprint size={88} strokeWidth={1} /></div>
           <h2>{currentMode === 'login' ? 'Welcome back.\nPick up where you left off.' : 'Your next chapter\nstarts here.'}</h2>
           <p>{currentMode === 'login' ? 'Sign in to your account and continue to your application.' : 'Create your account with clear choices about how your personal information is used.'}</p>
           <div className="hosted-art-note"><ShieldCheck size={20} aria-hidden="true" /><span>Your identity. Your choices.</span></div>
         </div>
-      </aside>}
+      </aside>
       <section className="hosted-card hosted-auth-card">
         <div className="hosted-auth-surface">
         <div className="hosted-header">

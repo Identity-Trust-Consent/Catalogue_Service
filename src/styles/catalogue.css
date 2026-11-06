@@ -6270,13 +6270,3 @@ textarea {
   .hosted-split-shell .hosted-app-summary h1 { font-size:24px; }
 }
 .notice-guardian-method-help { grid-column:1/-1; margin:0; color:#52627b; font-size:13px; }
-.hosted-identity-shell.hosted-registration-shell { display:block; background:#f5f8ff; }
-.hosted-registration-shell .hosted-auth-card { width:100%; min-height:100dvh; background:linear-gradient(180deg,#f5f8ff 0,#fff 260px); padding:36px clamp(20px,5vw,96px) 48px; }
-.hosted-registration-shell .hosted-auth-card> * { max-width:1120px; }
-.hosted-registration-shell .hosted-form { grid-template-columns:minmax(0,1fr); gap:24px; }
-.hosted-registration-shell .hosted-field>label { font-size:13px; letter-spacing:.025em; }
-.hosted-registration-shell .hosted-auth-switch { padding-top:24px; }
-@media(max-width:760px) {
-  .hosted-registration-shell .hosted-auth-card { padding:24px 20px 32px; }
-  .hosted-registration-shell .hosted-form { gap:20px; }
-}
