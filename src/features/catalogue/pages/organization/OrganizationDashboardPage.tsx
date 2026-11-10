@@ -1,13 +1,12 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import keycloak from '../../../../lib/keycloak'
 import { AdminIcon } from '../../../../components/ui'
 import { readStorage } from '../../../../utils/storage'
 import OrgSidebar from '../../components/OrgSidebar'
 import OrgTopbar from '../../components/OrgTopbar'
-import AppLoading from '../../../../components/AppLoading'
 import { useCatalogue } from '../../context/CatalogueContext'
 
 const countByStatus = (items: Array<{ status: string }>) => ({
@@ -37,21 +36,23 @@ const hasRealmRole = (tokenPayload: any, role: string) => {
   return Array.isArray(roles) && roles.includes(role)
 }
 
-export default function OrganizationDashboardPage() {
-  const { applications, auditLogs, refreshCatalogueData, schemas, setView } = useCatalogue()
-  const router = useRouter()
-  const [authorized, setAuthorized] = useState(false)
+const hasHostedAdminSession = () => {
+  if (typeof window === 'undefined') return false
+  const redirectToken = new URLSearchParams(window.location.search).get('hosted_admin_token')
+  const hostedAdminPayload = decodeJwtPayload(redirectToken || readStorage('identity_os_hosted_admin_token'))
+  return hasRealmRole(hostedAdminPayload, 'APPLICATION_SUPER_ADMIN')
+}
 
+export default function OrganizationDashboardPage() {
+  const { applications, auditLogs, schemas, setView } = useCatalogue()
+  const router = useRouter()
   useEffect(() => {
     const hasAdminRole = keycloak.hasRealmRole('ORGANISATION_ADMIN') || keycloak.hasRealmRole('APPLICATION_SUPER_ADMIN')
-    const hostedAdminPayload = decodeJwtPayload(readStorage('identity_os_hosted_admin_token'))
-    const hasHostedAdminRole = hasRealmRole(hostedAdminPayload, 'APPLICATION_SUPER_ADMIN')
+    const hasHostedAdminRole = hasHostedAdminSession()
     if ((!keycloak.authenticated || !hasAdminRole) && !hasHostedAdminRole) {
       router.replace('/organization')
       return
     }
-    setAuthorized(true)
-    refreshCatalogueData?.()
   }, [router])
 
   const hostedAdminClientId = readStorage('identity_os_hosted_admin_client_id')
@@ -71,8 +72,6 @@ export default function OrganizationDashboardPage() {
     ...auditLogs.slice(0, 4).map((log) => ({ id: log.id, label: log.action, detail: log.details, time: log.timestamp, icon: 'audit' })),
   ].slice(0, 6)
 
-  if (!authorized) return <AppLoading message="Checking your session" />
-
   return (
     <div className="org-dashboard-shell org-console-shell">
       <OrgSidebar activeItem="Dashboard" />
@@ -83,7 +82,7 @@ export default function OrganizationDashboardPage() {
             <div>
               <div className="eyebrow">Self-hosted identity setup</div>
               <h2>Identity OS Configuration</h2>
-              <p>Customize the registration and login experience used by the SBI portal.</p>
+              <p>Customize the registration and login experience used by the Employee Management System.</p>
             </div>
             <div className="org-dashboard-actions">
               <button type="button" className="secondary-button icon-text-button" onClick={() => setView('org-login-builder')}><AdminIcon name="auth" />Login Page</button>

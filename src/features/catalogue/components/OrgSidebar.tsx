@@ -11,16 +11,22 @@ interface OrgSidebarProps {
 
 export default function OrgSidebar({ activeItem }: OrgSidebarProps) {
   const { setView } = useCatalogue()
-  const visibleMenu = orgAdminMenu.filter((item) => !['Organization Profile', 'Applications', 'API Credentials', 'Webhooks'].includes(item))
 
   const handleClick = (item: string) => {
     if (item === 'Dashboard') setView('organization-dashboard')
-    if (item === 'Organization Profile') setView('org-profile')
     if (item === 'Registration Builder') setView('org-registration-builder')
     if (item === 'Login Configuration') setView('org-login-builder')
-    if (item === 'Applications') setView('org-applications')
-    if (item === 'Users') setView('org-users')
+    if (item === 'All Users Details') setView('org-users')
     if (item === 'Audit Logs') setView('org-audit-logs')
+  }
+
+  const iconFor = (item: string) => {
+    if (item === 'Registration Builder') return 'schema'
+    if (item === 'Login Configuration') return 'auth'
+    if (item === 'All Users Details') return 'identity'
+    if (item === 'Audit Logs') return 'audit'
+    if (item === 'Setting') return 'security'
+    return 'dashboard'
   }
 
   return (
@@ -30,12 +36,13 @@ export default function OrgSidebar({ activeItem }: OrgSidebarProps) {
         <span><strong>Identity OS</strong><small>Admin Console</small></span>
       </div>
       <nav aria-label="Organization navigation">
-        {visibleMenu.map((item) => (
+        {orgAdminMenu.map((item) => item === 'Consent Management' ? (
+          <RepositorySidebar key={item} />
+        ) : (
           <button type="button" key={item} aria-current={item === activeItem ? 'page' : undefined} className={`menu-item ${item === activeItem ? 'active' : ''}`} onClick={() => handleClick(item)}>
-            <span className="nav-item-label"><AdminIcon name={item === 'Organization Profile' ? 'organizations' : item === 'Applications' ? 'applications' : item === 'Registration Builder' ? 'schema' : item === 'Login Configuration' ? 'auth' : item === 'Audit Logs' ? 'audit' : item === 'API Credentials' ? 'api' : item === 'Identity Management' || item === 'Users' ? 'identity' : item === 'Webhooks' ? 'trust' : 'dashboard'} />{item}</span>
+            <span className="nav-item-label"><AdminIcon name={iconFor(item)} />{item}</span>
           </button>
         ))}
-        <RepositorySidebar />
       </nav>
     </aside>
   )

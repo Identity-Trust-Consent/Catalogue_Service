@@ -28,7 +28,6 @@ const navSections = [
   {
     title: 'Security',
     items: [
-      { label: 'Identity Management', key: 'platform-identity-mgmt', icon: 'identity' },
       { label: 'Auth Monitoring', key: 'platform-auth-monitor', icon: 'auth' },
       { label: 'Audit Logs', key: 'platform-audit', icon: 'audit' },
       { label: 'Security Monitoring', key: 'platform-security-monitor', icon: 'security' },

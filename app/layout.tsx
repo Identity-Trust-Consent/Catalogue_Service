@@ -18,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
+      <body style={{ minHeight: '100vh', background: '#f5f7fc' }}>
         <KeycloakProvider>
           {children}
         </KeycloakProvider>

@@ -224,6 +224,7 @@ export function CatalogueProvider({ children, initialView = 'home' }: CatalogueP
   const [confirmProcessing, setConfirmProcessing] = useState(false)
   const refreshInFlight = useRef<Promise<void> | null>(null)
   const profileLoadAttempted = useRef<Set<string>>(new Set())
+  const hostedAdminBootstrapRef = useRef('')
 
   const setOrgLoginId = (value: string) => {
     setOrgLoginIdState(value)
@@ -436,6 +437,9 @@ export function CatalogueProvider({ children, initialView = 'home' }: CatalogueP
     const hostedClientId = params.get('client_id') || readStorage(HOSTED_ADMIN_CLIENT_ID_KEY) || ''
     const hostedAdminPayload = decodeJwtPayload(hostedAdminToken)
     if (hostedAdminToken && hasRealmRole(hostedAdminPayload, 'APPLICATION_SUPER_ADMIN')) {
+      const bootstrapKey = `${hostedAdminToken}:${hostedClientId}`
+      const isNewHostedAdminSession = hostedAdminBootstrapRef.current !== bootstrapKey
+      hostedAdminBootstrapRef.current = bootstrapKey
       writeStorage(HOSTED_ADMIN_TOKEN_KEY, hostedAdminToken)
       if (hostedClientId) {
         writeStorage(HOSTED_ADMIN_CLIENT_ID_KEY, hostedClientId)
@@ -452,7 +456,10 @@ export function CatalogueProvider({ children, initialView = 'home' }: CatalogueP
         const query = params.toString()
         window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`)
       }
-      refreshCatalogueData()
+      // This is the only catalogue refresh initiated by the hosted login
+      // handoff. The dashboard reads this shared result instead of starting a
+      // second request while it mounts.
+      if (isNewHostedAdminSession) refreshCatalogueData()
       if (hostedAdminPayload?.organization_id) return
     }
 

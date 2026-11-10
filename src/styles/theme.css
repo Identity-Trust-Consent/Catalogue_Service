@@ -371,10 +371,10 @@ input[readonly], textarea[readonly] { background: var(--grey-50); }
 .workspace-capabilities h2 { margin: 14px 0 8px; color: var(--grey-700); font-size: 13px; font-weight: 600; line-height: 1.5; letter-spacing: 0; }
 .workspace-capabilities p { color: var(--grey-500); font-size: 12px; line-height: 1.8; }
 .workspace-welcome__footer { max-width: 1184px; margin: 0 auto; padding: 25px 36px; display: flex; justify-content: space-between; gap: 20px; color: var(--grey-500); font-size: 11px; }
-.app-loading { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: radial-gradient(ellipse at 50% 45%, var(--brand-50), transparent 70%), var(--page-bg); color: var(--grey-800); }
-.app-loading__brand { display: grid; place-items: center; width: 54px; height: 54px; background: var(--brand-gradient); color: #fff; border-radius: 14px; box-shadow: 0 8px 24px rgb(37 99 235 / 20%); }
-.app-loading strong { font-size: 19px; font-weight: 600; letter-spacing: -.02em; }
-.app-loading>span { display: inline-flex; gap: 8px; align-items: center; color: var(--grey-500); font-size: 12px; }
+.app-loading { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: radial-gradient(ellipse at 15% 5%, #dbeafe80, transparent 45%), radial-gradient(ellipse at 90% 90%, #ede9fe90, transparent 45%), #f5f7fc; color: #17233b; }
+.app-loading__brand { display: grid; place-items: center; width: 54px; height: 54px; background: linear-gradient(140deg, #426ff0, #7956df); color: #fff; border-radius: 16px; box-shadow: 0 8px 24px rgb(66 111 240 / 25%); }
+.app-loading strong { font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
+.app-loading>span { display: inline-flex; gap: 8px; align-items: center; color: #60718a; font-size: 12px; }
 .ui-spin { animation: uiSpin .9s linear infinite; }
 @keyframes uiSpin { to { transform: rotate(360deg); } }
 @keyframes loadingLine { from { transform: translateX(-100%); } to { transform: translateX(435%); } }

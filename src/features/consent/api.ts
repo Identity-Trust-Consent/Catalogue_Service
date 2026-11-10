@@ -13,8 +13,16 @@ export function consentAccess(token: string | undefined) {
 }
 
 export function currentConsentToken() {
-  if (keycloak.token) return keycloak.token
-  try { return localStorage.getItem('identity_os_hosted_admin_token') || undefined } catch { return undefined }
+  const keycloakToken = keycloak.token
+  let hostedAdminToken: string | undefined
+  try { hostedAdminToken = localStorage.getItem('identity_os_hosted_admin_token') || undefined } catch { /* Storage is unavailable. */ }
+
+  // A hosted admin can also have a Keycloak browser session for a different
+  // client. Prefer the token that is valid for consent instead of hiding the
+  // repository when that lower-privilege session finishes initializing.
+  if (consentAccess(keycloakToken).read) return keycloakToken
+  if (consentAccess(hostedAdminToken).read) return hostedAdminToken
+  return keycloakToken || hostedAdminToken
 }
 
 export async function consentRequest<T = any>(path: string, options: RequestInit = {}): Promise<T> {

@@ -59,15 +59,10 @@ export const approvedOrgIds = ['org_7k3m9p2x', 'org_b8c5d1k9', 'org_f9e2h4q7']
 
 export const orgAdminMenu = [
   'Dashboard',
-  'Organization Profile',
-  'Applications',
   'Registration Builder',
   'Login Configuration',
-  'Auth Policies',
-  'Users',
-  'Identity Management',
-  'API Credentials',
-  'Webhooks',
+  'Consent Management',
+  'All Users Details',
   'Audit Logs',
-  'Settings',
+  'Setting',
 ]

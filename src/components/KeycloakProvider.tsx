@@ -64,6 +64,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import keycloak from "../lib/keycloak";
 import AppLoading from './AppLoading';
 
@@ -73,9 +74,17 @@ export default function KeycloakProvider({
   children: React.ReactNode;
 }) {
   const initialized = useRef(false);
-  const [ready, setReady] = useState(false);
+  const pathname = usePathname();
+  const hostedIdentityRoute = pathname.startsWith('/identity/');
+  const [ready, setReady] = useState(hostedIdentityRoute);
 
   useEffect(() => {
+    // Hosted login and registration have their own authentication flow. Avoid
+    // delaying these public pages while Keycloak checks the browser SSO state.
+    if (hostedIdentityRoute) {
+      setReady(true);
+      return;
+    }
     if (initialized.current) {
       return;
     }
@@ -97,7 +106,7 @@ export default function KeycloakProvider({
       .catch((error) => {
         console.error("Keycloak initialization failed:", error);
       });
-  }, []);
+  }, [hostedIdentityRoute]);
 
   if (!ready) {
     return <AppLoading />;

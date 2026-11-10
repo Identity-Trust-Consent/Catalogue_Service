@@ -57,6 +57,8 @@ interface HostedField {
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
 const ONBOARDING_API_BASE_URL = process.env.NEXT_PUBLIC_ONBOARDING_API_BASE_URL || API_BASE_URL.replace(':8080', ':8081')
 const API_BASE_URLS = Array.from(new Set([API_BASE_URL, ONBOARDING_API_BASE_URL]))
+const SELF_HOSTED_APPLICATION_ID = 'app_b713e8eeab81'
+const SELF_HOSTED_APPLICATION_NAME = 'Employee Management System'
 
 const safeJson = (value: any) => {
   if (!value) return null
@@ -68,17 +70,25 @@ const safeJson = (value: any) => {
   }
 }
 
-const normalizeApp = (app: any): HostedApplication => ({
-  id: app.applicationId || app.id,
-  internalId: app.id,
-  clientId: app.clientId,
-  orgId: app.organizationId || app.orgId,
-  orgName: app.organizationName || app.orgName || '',
-  name: app.applicationName || app.name || app.applicationId || app.id,
-  type: app.applicationType || app.type,
-  redirectUri: app.redirectUri,
-  status: app.status === 'ACTIVE' || app.status === 'approved' ? 'approved' : app.status === 'SUSPENDED' || app.status === 'rejected' ? 'rejected' : 'pending',
-})
+const normalizeApp = (app: any): HostedApplication => {
+  const id = app.applicationId || app.id
+  const clientId = app.clientId
+  return {
+    id,
+    internalId: app.id,
+    clientId,
+    orgId: app.organizationId || app.orgId,
+    orgName: app.organizationName || app.orgName || '',
+    // Keep the public self-hosted pages accurate while an already-running
+    // onboarding instance still has its previous bootstrap value in memory.
+    name: id === SELF_HOSTED_APPLICATION_ID || clientId === SELF_HOSTED_APPLICATION_ID
+      ? SELF_HOSTED_APPLICATION_NAME
+      : app.applicationName || app.name || id,
+    type: app.applicationType || app.type,
+    redirectUri: app.redirectUri,
+    status: app.status === 'ACTIVE' || app.status === 'approved' ? 'approved' : app.status === 'SUSPENDED' || app.status === 'rejected' ? 'rejected' : 'pending',
+  }
+}
 
 const normalizeSchema = (schema: any): HostedSchema => ({
   id: schema.schemaId || schema.id,
@@ -191,17 +201,18 @@ const fetchJsonWithTimeout = async (url: string, timeoutMs = 8000) => {
 }
 
 const fetchHostedJson = async (path: string, timeoutMs = 4000) => {
-  let lastError: unknown = null
-  for (const baseUrl of API_BASE_URLS) {
-    try {
-      const result = await fetchJsonWithTimeout(`${baseUrl}${path}`, timeoutMs)
-      if (result.response.ok) return result
-      lastError = new Error(`Request failed: ${result.response.status}`)
-    } catch (error) {
-      lastError = error
-    }
-  }
-  throw lastError instanceof Error ? lastError : new Error('Identity OS request failed.')
+  // The API gateway and onboarding service can both serve this data. Start both
+  // requests at once so an unavailable gateway cannot make the public page wait
+  // for a second timeout before the available service responds.
+  const results = await Promise.allSettled(API_BASE_URLS.map(async (baseUrl) => {
+    const result = await fetchJsonWithTimeout(`${baseUrl}${path}`, timeoutMs)
+    if (!result.response.ok) throw new Error(`Request failed: ${result.response.status}`)
+    return result
+  }))
+  const successful = results.find((result): result is PromiseFulfilledResult<{ response: Response; data: any }> => result.status === 'fulfilled')
+  if (successful) return successful.value
+  const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+  throw failed?.reason instanceof Error ? failed.reason : new Error('Identity OS request failed.')
 }
 
 const hostedIdentityRequest = async (path: string, body: Record<string, unknown>) => {
@@ -262,6 +273,33 @@ const createConsentNotice = async (body: Record<string, unknown>) => {
 
 const buildHostedFlowUrl = (mode: 'register' | 'login', clientId: string, redirectUri: string) =>
   `/identity/${mode}?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}`
+
+function HostedIdentityLoading({ mode }: { mode: HostedMode }) {
+  const isRegister = mode === 'register'
+  return (
+    <div className="hosted-identity-shell hosted-auth-shell hosted-split-shell hosted-loading-shell" role="status" aria-live="polite" aria-label="Loading Identity OS">
+      <aside className="hosted-auth-art" aria-hidden="true">
+        <div className="hosted-art-orbit hosted-art-orbit-one" /><div className="hosted-art-orbit hosted-art-orbit-two" />
+        <div className="hosted-art-content">
+          <span className="hosted-art-eyebrow"><Sparkles size={16} />IDENTITY OS</span>
+          <div className="hosted-art-symbol"><Fingerprint size={88} strokeWidth={1} /></div>
+          <h2>{isRegister ? 'Your next chapter\nstarts here.' : 'Welcome back.\nPick up where you left off.'}</h2>
+          <p>{isRegister ? 'Preparing your secure registration experience.' : 'Preparing your secure sign-in experience.'}</p>
+        </div>
+      </aside>
+      <section className="hosted-card hosted-auth-card">
+        <div className="hosted-auth-surface hosted-loading-surface">
+          <span className="hosted-brand"><AdminIcon name="shield" />Identity OS</span>
+          <div className="hosted-loading-title"><span className="hosted-loading-avatar" /><div><span className="hosted-loading-line is-title" /><span className="hosted-loading-line is-subtitle" /></div></div>
+          <div className="hosted-loading-field"><span /><i /></div>
+          <div className="hosted-loading-field"><span /><i /></div>
+          <div className="hosted-loading-button" />
+          <p className="hosted-loading-copy">Loading Identity OS securely...</p>
+        </div>
+      </section>
+    </div>
+  )
+}
 
 export default function HostedIdentityPage({ initialClientId = '', initialRedirectUri = '', mode: initialMode }: HostedIdentityPageProps) {
   const [mode, setMode] = useState(initialMode)
@@ -329,12 +367,14 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
       setConfigurationReady(false)
       setMessage('')
       try {
-        const appResult = await fetchHostedJson(`/api/v1/onboarding/applications/client/${encodeURIComponent(clientId)}`)
-        if (appResult.response.ok && appResult.data) {
-          const application = normalizeApp(appResult.data)
+        const [appResult, ...schemaResults] = await Promise.allSettled([
+          fetchHostedJson(`/api/v1/onboarding/applications/client/${encodeURIComponent(clientId)}`),
+          ...['REGISTRATION', 'LOGIN'].map(schemaType => fetchHostedJson(`/api/v1/onboarding/identity/schema?clientId=${encodeURIComponent(clientId)}&schemaType=${schemaType}`)),
+        ])
+        if (appResult.status === 'fulfilled' && appResult.value.response.ok && appResult.value.data) {
+          const application = normalizeApp(appResult.value.data)
           setApplications((prev) => [application, ...prev.filter((item) => item.id !== application.id && item.clientId !== application.clientId)])
         }
-        const schemaResults = await Promise.allSettled(['REGISTRATION', 'LOGIN'].map(schemaType => fetchHostedJson(`/api/v1/onboarding/identity/schema?clientId=${encodeURIComponent(clientId)}&schemaType=${schemaType}`)))
         for (const result of schemaResults) {
           if (result.status !== 'fulfilled') continue
           const schemaResult = result.value
@@ -621,7 +661,7 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
     }
   }
 
-  if (!queryReady || !configurationReady) return <div className="hosted-identity-shell hosted-auth-shell"><div className="hosted-card hosted-auth-card"><p>Loading Identity OS configuration...</p></div></div>
+  if (!queryReady || !configurationReady) return <HostedIdentityLoading mode={mode} />
 
   if (activeNotice) return <RegistrationNotice notice={activeNotice} onClose={() => { setActiveNotice(null); window.scrollTo({ top: 0 }) }} onAccepted={principal => {
     setConsentGranted(true); setConsentPrincipal(principal); setConsentBirthDate(activeNoticeBirthDate); setActiveNotice(null); setFieldErrors({}); setConsentError('')

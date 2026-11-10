@@ -128,7 +128,7 @@ export default function OrganizationUsersPage() {
 
   return (
     <div className="org-dashboard-shell org-console-shell">
-      <OrgSidebar activeItem="Users" />
+      <OrgSidebar activeItem="All Users Details" />
       <main className="org-main org-console-main org-users-main">
         <OrgTopbar heading={`Users - ${currentOrg?.name || orgId || 'Organization'}`} subtitle="Trust score and identity assurance for registered users." />
         <section className="org-console-content org-users-content">
