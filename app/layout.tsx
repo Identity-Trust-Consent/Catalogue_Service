@@ -4,6 +4,7 @@ import '../src/styles/catalogue.css'
 import '../src/features/consent/repository.css'
 import '../src/features/consent/records.css'
 import '../src/styles/theme.css'
+import '../src/features/trust/trust.css'
 import KeycloakProvider from '../src/components/KeycloakProvider'
 
 export const metadata: Metadata = {

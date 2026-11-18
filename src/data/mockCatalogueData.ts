@@ -63,6 +63,7 @@ export const orgAdminMenu = [
   'Login Configuration',
   'Consent Management',
   'All Users Details',
+  'Trust Configuration',
   'Audit Logs',
   'Setting',
 ]

@@ -23,6 +23,7 @@ export const catalogueRoutes = {
   'org-profile': '/organization/profile',
   'org-applications': '/organization/applications',
   'org-users': '/organization/users',
+  'org-trust': '/organization/trust-configuration',
   'org-audit-logs': '/organization/audit-logs',
   'org-registration-builder': '/organization/registration-builder',
   'org-login-builder': '/organization/login-builder',

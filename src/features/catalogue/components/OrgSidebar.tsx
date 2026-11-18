@@ -17,6 +17,7 @@ export default function OrgSidebar({ activeItem }: OrgSidebarProps) {
     if (item === 'Registration Builder') setView('org-registration-builder')
     if (item === 'Login Configuration') setView('org-login-builder')
     if (item === 'All Users Details') setView('org-users')
+    if (item === 'Trust Configuration') setView('org-trust')
     if (item === 'Audit Logs') setView('org-audit-logs')
   }
 
@@ -24,6 +25,7 @@ export default function OrgSidebar({ activeItem }: OrgSidebarProps) {
     if (item === 'Registration Builder') return 'schema'
     if (item === 'Login Configuration') return 'auth'
     if (item === 'All Users Details') return 'identity'
+    if (item === 'Trust Configuration') return 'shield'
     if (item === 'Audit Logs') return 'audit'
     if (item === 'Setting') return 'security'
     return 'dashboard'

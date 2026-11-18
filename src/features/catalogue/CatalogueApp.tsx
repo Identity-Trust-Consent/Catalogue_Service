@@ -14,6 +14,7 @@ import OrganizationProfilePage from './pages/organization/OrganizationProfilePag
 import OrganizationUsersPage from './pages/organization/OrganizationUsersPage'
 import RegistrationBuilderPage from './pages/organization/RegistrationBuilderPage'
 import type { CatalogueView } from './routes'
+import TrustConfigurationPage from '../trust/TrustConfigurationPage'
 
 interface CatalogueAppProps {
   initialView?: CatalogueView
@@ -28,7 +29,9 @@ function CatalogueRoutes() {
       {view === 'home' && <HomePage />}
       {view === 'registration' && <RegistrationPage />}
       {view === 'success' && <RegistrationSuccessPage />}
-      {isPlatformView && <OrganizationLoginPage />}
+      {isPlatformView && view !== 'platform-trust' && <OrganizationLoginPage />}
+      {view === 'platform-trust' && <TrustConfigurationPage platform />}
+      {view === 'org-trust' && <TrustConfigurationPage />}
       {view === 'organization' && <OrganizationLoginPage />}
       {view === 'organization-dashboard' && <OrganizationDashboardPage />}
       {view === 'org-profile' && <OrganizationProfilePage />}

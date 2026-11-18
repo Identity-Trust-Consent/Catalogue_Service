@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import { AdminIcon } from '../../../components/ui'
+import TrustBreakdown from '../../trust/TrustBreakdown'
+import { trustClaims, trustRequest, trustToken, type TrustScore } from '../../trust/api'
 
 interface HostedTrustScorePageProps {
   initialClientId?: string
@@ -19,17 +21,6 @@ interface HostedApplication {
   orgId?: string
 }
 
-interface TrustScore {
-  subjectId: string
-  applicationId?: string
-  identityScore: number
-  behaviourScore: number
-  riskPenalty: number
-  finalScore: number
-  trustLevel: string
-  decision: string
-  reasons: string[]
-}
 
 const normalizeApp = (app: any): HostedApplication => ({
   id: app.applicationId || app.clientId || app.application_id || app.id || '',
@@ -41,7 +32,6 @@ const normalizeApp = (app: any): HostedApplication => ({
   orgId: app.orgId || app.organizationId || app.organization_id || '',
 })
 
-const percent = (value?: number) => Math.max(0, Math.min(100, Math.round(Math.abs(value || 0))))
 
 const trustClass = (level?: string) => {
   const normalized = (level || '').toLowerCase()
@@ -68,10 +58,7 @@ const resolveReturnUrl = (value: string | null) => {
 }
 
 const needsProfileCompletion = (score: TrustScore | null) => {
-  if (!score) return false
-  const decision = (score.decision || '').toUpperCase()
-  const level = (score.trustLevel || '').toUpperCase()
-  return score.finalScore < 70 || ['LOW', 'CRITICAL'].includes(level) || ['STEP_UP_AUTHENTICATION', 'MANUAL_REVIEW', 'DENY'].includes(decision)
+  return !!score?.reasons?.some(reason => reason.startsWith('PROFILE_') && !reason.endsWith('_PASSED'))
 }
 
 export default function HostedTrustScorePage({ initialClientId = '', initialUsername = '' }: HostedTrustScorePageProps) {
@@ -133,13 +120,13 @@ export default function HostedTrustScorePage({ initialClientId = '', initialUser
       try {
         const appResponse = await fetch(`/api/catalogue/api/v1/onboarding/applications/client/${encodeURIComponent(clientId)}`, { cache: 'no-store' })
         const appData = appResponse.ok ? normalizeApp(await appResponse.json()) : null
-        const query = new URLSearchParams()
-        if (appData?.organizationId || appData?.orgId) query.set('organizationId', appData.organizationId || appData.orgId || '')
-        if (appData?.applicationId || appData?.id || clientId) query.set('applicationId', appData?.applicationId || appData?.id || clientId)
 
-        const scoreResponse = await fetch(`/api/catalogue/api/v1/trust/users/${encodeURIComponent(username)}?${query.toString()}`, { cache: 'no-store' })
-        if (!scoreResponse.ok) throw new Error(await scoreResponse.text() || 'Unable to load trust score.')
-        const scoreData = await scoreResponse.json() as TrustScore
+        const claims = trustClaims(trustToken(true))
+        if (!claims?.sub || !claims?.sid) throw new Error('Sign in again to evaluate your current authenticated session.')
+        const scoreData = await trustRequest<TrustScore>('/api/v1/trust/evaluations', { method: 'POST', body: JSON.stringify({
+          subjectType: 'USER', subjectId: claims.sub, organizationId: appData?.organizationId || appData?.orgId,
+          applicationId: appData?.applicationId || appData?.id || clientId, sessionId: claims.sid,
+        }) }, true)
         if (cancelled) return
         setApp(appData)
         setScore(scoreData)
@@ -205,23 +192,7 @@ export default function HostedTrustScorePage({ initialClientId = '', initialUser
               <strong>{formatLabel(score.decision)}</strong>
             </div>
 
-            <div className="trust-distribution-list">
-              <div className="trust-distribution-row">
-                <span>Identity Score</span>
-                <div><i className="identity" style={{ width: `${percent(score.identityScore)}%` }} /></div>
-                <strong>{score.identityScore}</strong>
-              </div>
-              <div className="trust-distribution-row">
-                <span>Behaviour Score</span>
-                <div><i className="behaviour" style={{ width: `${percent(score.behaviourScore)}%` }} /></div>
-                <strong>{score.behaviourScore}</strong>
-              </div>
-              <div className="trust-distribution-row">
-                <span>Risk Penalty</span>
-                <div><i className="risk" style={{ width: `${percent(score.riskPenalty)}%` }} /></div>
-                <strong>{score.riskPenalty}</strong>
-              </div>
-            </div>
+            <TrustBreakdown score={score} />
 
             <div className="trust-reason-panel">
               <h4>Why this score?</h4>

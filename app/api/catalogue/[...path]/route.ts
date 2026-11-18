@@ -78,7 +78,7 @@ async function proxyOnboardingRequest(request: NextRequest, context: RouteContex
 
   const isOnboardingPath = upstreamPath.startsWith('api/v1/onboarding/')
   const isAuthPath = upstreamPath.startsWith('api/v1/auth/')
-  const isTrustPath = upstreamPath.startsWith('api/v1/trust/')
+  const isTrustPath = upstreamPath.startsWith('api/v1/trust/') || /^api\/v1\/organisations\/[^/]+\/(trust-configurations(?:\/.*)?|trust-audit)$/.test(upstreamPath)
   const isAuditPath = upstreamPath.startsWith('audits/')
   if (!isOnboardingPath && !isAuthPath && !isTrustPath && !isAuditPath) {
     return NextResponse.json({ message: 'Unsupported catalogue route' }, { status: 404 })

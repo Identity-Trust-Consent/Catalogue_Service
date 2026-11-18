@@ -647,6 +647,8 @@ export default function HostedIdentityPage({ initialClientId = '', initialRedire
         redirectUri: callbackUri,
         fields: submittedFields,
       })
+      // Keep the authenticated user's token scoped to this browser tab for the hosted trust view.
+      if (tokenResponse.accessToken) sessionStorage.setItem('identity_os_trust_user_token', tokenResponse.accessToken)
       redirectWithParams(callbackUri, {
         access_token: tokenResponse.accessToken,
         token_type: tokenResponse.tokenType || 'Bearer',

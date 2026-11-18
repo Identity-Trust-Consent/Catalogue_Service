@@ -11,6 +11,7 @@ export async function logoutFromKeycloak() {
   try {
     localStorage.removeItem("identity_os_hosted_admin_token");
     localStorage.removeItem("identity_os_hosted_admin_client_id");
+    sessionStorage.removeItem("identity_os_trust_user_token");
   } catch {
     // Ignore storage cleanup failures during logout.
   }
