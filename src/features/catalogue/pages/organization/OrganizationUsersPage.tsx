@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Info, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Info, RefreshCw, LoaderCircle } from 'lucide-react'
 import { AdminIcon } from '../../../../components/ui'
 import OrgSidebar from '../../components/OrgSidebar'
 import OrgTopbar from '../../components/OrgTopbar'
@@ -207,41 +207,31 @@ export default function OrganizationUsersPage() {
 
             <article className="org-chart-panel trust-detail-panel">
               <div className="panel-heading">
-                <h3>Trust Score Distribution</h3>
-                <span>{selectedScore?.decision?.replaceAll('_', ' ') || (selectedProblem && selectedProblem.kind !== 'not-evaluated' ? 'Score unavailable' : loading ? 'Loading...' : 'Not evaluated')}</span>
+                <h3>Trust overview</h3>
+                <span className={`trust-decision-badge ${selectedScore?.decision === 'ALLOW' ? 'is-allowed' : selectedScore ? 'is-restricted' : ''}`}>{selectedScore ? ({ ALLOW: 'Access allowed', DENY: 'Access denied', INCOMPLETE: 'Incomplete', STEP_UP_AUTHENTICATION: 'Verification required' }[selectedScore.decision] || selectedScore.decision.replaceAll('_', ' ')) : (selectedProblem && selectedProblem.kind !== 'not-evaluated' ? 'Score unavailable' : loading ? 'Loading...' : 'Not evaluated')}</span>
               </div>
               {!selectedUser && <div className="empty-state">Select a user to view trust distribution.</div>}
               {selectedUser && (
                 <>
                   <div className="trust-user-profile">
                     <span className="org-user-avatar large">{displayUserName(selectedUser).slice(0, 1).toUpperCase()}</span>
-                    <div>
+                    <div className="trust-user-identity">
                       <h3>{displayUserName(selectedUser)}</h3>
                       <p>{selectedUser.email || selectedUser.mobileNumber || selectedUser.username}</p>
                       <small>{selectedUser.applicationName || appNameById[selectedUser.applicationId] || selectedUser.applicationId}</small>
                     </div>
-                    <strong className={`trust-total ${trustClass(selectedScore?.trustLevel)}`}>{selectedScore ? Math.round(selectedScore.finalScore) : '-'}</strong>
+                    <div className="trust-score-display"><span>Trust score</span><strong className={`trust-total ${trustClass(selectedScore?.trustLevel)}`}>{selectedScore ? Math.round(selectedScore.finalScore) : '-'}<small> / 100</small></strong><span>{selectedScore ? selectedScore.complete ? 'Evaluation complete' : 'Partial evidence' : 'Awaiting evaluation'}</span></div>
                   </div>
 
                   <div className="trust-user-evaluate">
-                    <div><h4>{selectedScore ? 'Update this evaluation' : 'Calculate trust score'}</h4><p>Check this user’s account and latest active application session in Keycloak, then refresh evidence from connected providers.</p></div>
-                    <button type="button" className="primary-button" disabled={loading || !!evaluatingUserKey || !selectedUser.subjectId || !selectedUser.applicationId} onClick={() => void evaluateSelectedUser()}><ShieldCheck size={16} aria-hidden="true" />{evaluatingUserKey === scoreKey(selectedUser) ? 'Evaluating...' : selectedScore ? 'Re-evaluate trust' : 'Evaluate trust'}</button>
+                    <div><h4>{selectedScore ? 'Refresh security evidence' : 'Calculate trust score'}</h4><p>Check the latest account, session and connected security evidence.</p></div>
+                    <button type="button" className="primary-button" disabled={loading || !!evaluatingUserKey || !selectedUser.subjectId || !selectedUser.applicationId} onClick={() => void evaluateSelectedUser()}>{evaluatingUserKey === scoreKey(selectedUser) ? <LoaderCircle className="trust-evaluate-spinner" size={16} aria-hidden="true" /> : <RefreshCw size={16} aria-hidden="true" />}{evaluatingUserKey === scoreKey(selectedUser) ? 'Evaluating...' : selectedScore ? 'Re-evaluate trust' : 'Evaluate trust'}</button>
                   </div>
                   {selectedProblem && <div className={`trust-user-message ${selectedProblem.kind === 'not-evaluated' ? 'is-info' : 'is-error'}`} role={selectedProblem.kind === 'not-evaluated' ? 'status' : 'alert'}><Info size={17} aria-hidden="true" /><div><p>{selectedProblem.message}</p>{selectedProblem.kind === 'configuration' && <Link href="/organization/trust-configuration">Create and publish a trust configuration</Link>}</div></div>}
                   {!selectedScore && !selectedProblem && !loading && !evaluatingUserKey && <p className="trust-user-empty">Registration creates the user account. Select Evaluate trust to calculate and save this user's score.</p>}
                   {!!selectedScore && !selectedScore.sessionId && <p className="trust-user-empty">No application session was resolved. Ask this user to log in, then re-evaluate. If they are already logged in, check the Keycloak evidence-reader configuration.</p>}
                   {selectedScore && <TrustBreakdown score={selectedScore} />}
 
-                  {selectedScore && <div className="trust-reason-panel">
-                    <h4>Why this score?</h4>
-                    {selectedScore?.reasons?.length ? (
-                      <div className="trust-reason-list">
-                        {selectedScore.reasons.map((reason, index) => <span key={`${reason}-${index}`}>{reason}</span>)}
-                      </div>
-                    ) : (
-                      <p>This evaluation did not return any reason codes.</p>
-                    )}
-                  </div>}
                 </>
               )}
             </article>
