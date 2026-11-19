@@ -19,7 +19,7 @@ export function trustToken(hostedUser = false) {
   const hosted = localStorage.getItem('identity_os_hosted_admin_token') || ''
   const isAdmin = (token: string) => {
     const claims = trustClaims(token)
-    return claims?.exp * 1000 > Date.now() && claims?.realm_access?.roles?.some((role: string) => ['PLATFORM_ADMIN', 'ORGANISATION_ADMIN'].includes(role))
+    return claims?.exp * 1000 > Date.now() && claims?.realm_access?.roles?.some((role: string) => ['PLATFORM_ADMIN', 'ORGANISATION_ADMIN', 'APPLICATION_SUPER_ADMIN'].includes(role))
   }
   return isAdmin(browser) ? browser : isAdmin(hosted) ? hosted : browser || hosted
 }
