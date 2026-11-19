@@ -1,6 +1,6 @@
 import keycloak from '../../lib/keycloak'
 
-export interface TrustSignal { code: string; status: string; reasonCode: string; score: number | null; effectiveWeight: number; observedAt?: string }
+export interface TrustSignal { code: string; status: string; reasonCode: string; score: number | null; effectiveWeight: number; configuredWeight?: number; rawOutcome?: string; observedAt?: string }
 export interface TrustCategory { code: string; name: string; weight: number; score: number; contribution: number; signals: TrustSignal[] }
 export interface TrustScore {
   subjectId: string; applicationId: string; sessionId?: string; finalScore: number; trustLevel: string; decision: string;
