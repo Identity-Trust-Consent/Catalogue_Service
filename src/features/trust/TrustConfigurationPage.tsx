@@ -56,13 +56,20 @@ export default function TrustConfigurationPage({ platform = false }: { platform?
   }
   async function load(preferredId?: string) {
     if (!org) throw new Error('Select an organisation first.')
-    const [categories, configurations, events] = await Promise.all([
-      trustRequest<Master[]>('/api/v1/trust/master/categories'), trustRequest<Configuration[]>(base),
-      trustRequest<AuditEvent[]>(`/api/v1/organisations/${encodeURIComponent(org)}/trust-audit`),
-    ])
+    let categories: Master[]
+    try { categories = await trustRequest<Master[]>('/api/v1/trust/master/categories') }
+    catch (failure) { throw new Error(`Unable to load trust master categories. ${failure instanceof Error ? failure.message : 'Unknown error.'}`) }
+    let configurations: Configuration[]
+    try { configurations = await trustRequest<Configuration[]>(base) }
+    catch (failure) { throw new Error(`Unable to load organisation trust configurations. ${failure instanceof Error ? failure.message : 'Unknown error.'}`) }
     setMaster(categories); setMasterEdits(categories); setVersions(configurations)
     setDraft(configurations.find(c => c.id === preferredId) || configurations.find(c => c.status === 'DRAFT' || c.status === 'VALIDATED') || configurations[0] || null)
-    setAudit(events); setDirty(false)
+    setDirty(false)
+  }
+  async function loadActivity() {
+    if (!org) throw new Error('Select an organisation first.')
+    const events = await trustRequest<AuditEvent[]>(`/api/v1/organisations/${encodeURIComponent(org)}/trust-audit`)
+    setAudit(events); setView('activity')
   }
   useEffect(() => { if (org && !platform) void action(() => load()) }, [org])
   function changeCategory(code: string, update: Partial<CategoryConfig>) {
@@ -131,7 +138,7 @@ export default function TrustConfigurationPage({ platform = false }: { platform?
           <nav className="trust-tabs" aria-label="Trust management sections">
             <button type="button" aria-pressed={view === 'configuration'} onClick={() => setView('configuration')}><SlidersHorizontal size={16} aria-hidden="true" />Configuration</button>
             <button type="button" aria-pressed={view === 'evaluations'} onClick={() => setView('evaluations')}><ShieldCheck size={16} aria-hidden="true" />Evaluations</button>
-            <button type="button" aria-pressed={view === 'activity'} onClick={() => setView('activity')}><History size={16} aria-hidden="true" />Activity</button>
+            <button type="button" aria-pressed={view === 'activity'} onClick={() => void action(loadActivity)}><History size={16} aria-hidden="true" />Activity</button>
           </nav>
           <label className="trust-version-picker"><span>Version</span><select disabled={busy || !versions.length} value={draft?.id || ''} onChange={e => { setDraft(versions.find(v => v.id === e.target.value) || null); setDirty(false) }}><option value="" disabled>{versions.length ? 'Select a version' : 'No versions yet'}</option>{versions.map(v => <option key={v.id} value={v.id}>Version {v.version} - {label(v.status)}</option>)}</select></label>
         </div>
